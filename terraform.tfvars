@@ -1,0 +1,5 @@
+project_id = "data-project-2-449815"
+region     = "europe-west1"
+zone       = "europe-west1-b"
+subnetwork = "projects/data-project-2-449815/regions/europe-west1/subnetworks/default"
+service_account_email = ""
