@@ -24,8 +24,4 @@ terraform {
     }
   }
 
-  backend "gcs" {
-    bucket  = "serverless-bucket-data-project"
-    prefix  = "terraform/state"
-  }
 }
