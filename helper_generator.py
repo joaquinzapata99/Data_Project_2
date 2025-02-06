@@ -34,7 +34,7 @@ def normalizar_nombre(nombre):
 def crear_voluntarios(num_voluntarios):
     """Genera una lista de voluntarios con datos aleatorios."""
     fake = Faker('es_ES')  
-    necesidades = ["Agua", "Comida", "Maquinaria Pesada", "Herramientas manuales", "Fontaneria", "Electricista", "Refugio", "Ropa", "Medicinas", "Limpieza"]
+    necesidades = ["Agua", "Comida", "Maquinaria Pesada", "Herramientas manuales", "Fontaneria", "Electricista", "Hogar", "Ropa", "Medicinas", "Limpieza"]
     urgencias = ["Inmediata", "Mañana", "Tarde", "Noche"]
 
     voluntarios = []
@@ -44,7 +44,7 @@ def crear_voluntarios(num_voluntarios):
             "Nombre": normalizar_nombre(fake.name()),
             "Edad": random.randint(18, 80),
             "Telefono": str(random.randint(600000000, 699999999)),
-            "Habilidad": random.choice(necesidades),
+            "Necesidad": random.choice(necesidades),
             "Nivel de Urgencias": random.choice(urgencias),
             "Timestamp": generar_timestamp(),
             "Ubicacion": generar_ubicacion()

@@ -35,7 +35,7 @@ def crear_peticiones(num_peticiones):
     """Genera una lista de peticiones de ayuda con datos aleatorios."""
     fake = Faker('es_ES')  
     urgencias = ["Muy urgente", "Alta", "Media", "Baja"]
-    necesidades = ["Agua", "Comida", "Maquinaria Pesada", "Herramientas manuales", "Fontaneria", "Electricista", "Refugio", "Ropa", "Medicinas", "Limpieza"]
+    habilidades = ["Agua", "Comida", "Maquinaria Pesada", "Herramientas manuales", "Fontaneria", "Electricista", "Hogar", "Ropa", "Medicinas", "Limpieza"]
 
     peticiones = []
     for _ in range(num_peticiones):
@@ -45,7 +45,7 @@ def crear_peticiones(num_peticiones):
             "Edad": random.randint(18, 80),
             "Telefono": str(random.randint(600000000, 699999999)),
             "Nivel_Urgencia": random.choice(urgencias),
-            "Necesidad": random.choice(necesidades),
+            "Necesidad": random.choice(habilidades),
             "Timestamp": generar_timestamp(),
             "Ubicacion": generar_ubicacion()
         }
