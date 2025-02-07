@@ -1,9 +1,9 @@
 #!/bin/sh
 
-# Iniciar la API en segundo plano
-uvicorn api:app --host 0.0.0.0 --port 8000 &
+# Iniciar la API en segundo plano para permitir generación de datos
+uvicorn api:app --host 0.0.0.0 --port 8080 &
 
-# Esperar a que la API se levante
+# Esperar unos segundos para que la API se inicie correctamente
 sleep 5
 
 # Contadores de generación
@@ -17,14 +17,14 @@ echo "Generando datos aleatorios hasta llegar a $max_requests peticiones y $max_
 while [ $requests_generated -lt $max_requests ] || [ $helpers_generated -lt $max_helpers ]
 do
     if [ $requests_generated -lt $max_requests ]; then
-        curl -X POST "http://localhost:8000/generate_requests?n=10" -s -o /dev/null
-        requests_generated=$((requests_generated + 2))
+        curl -X POST "http://localhost:8080/generate_requests?n=10" -s -o /dev/null
+        requests_generated=$((requests_generated + 5))
         echo "Peticiones generadas: $requests_generated"
     fi
 
     if [ $helpers_generated -lt $max_helpers ]; then
-        curl -X POST "http://localhost:8000/generate_helpers?n=10" -s -o /dev/null
-        helpers_generated=$((helpers_generated + 2))
+        curl -X POST "http://localhost:8080/generate_helpers?n=10" -s -o /dev/null
+        helpers_generated=$((helpers_generated + 5))
         echo "Voluntarios generados: $helpers_generated"
     fi
 
@@ -33,4 +33,6 @@ do
 done
 
 echo "Generación completa: $requests_generated peticiones y $helpers_generated voluntarios."
+
+# Mantener el contenedor en ejecución (necesario para Cloud Run)
 wait
