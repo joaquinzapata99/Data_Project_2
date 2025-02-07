@@ -3,4 +3,4 @@
 
 docker build -t fastapi-pubsub-api .
 
-docker run -p 8000:8000 fastapi-pubsub-api
+docker run -p 8080:8080 fastapi-pubsub-api
