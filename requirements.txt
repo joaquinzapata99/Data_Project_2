@@ -1,2 +1,7 @@
 Faker
 unidecode
+fastapi
+uvicorn
+google-cloud-pubsub
+faker
+unidecode
