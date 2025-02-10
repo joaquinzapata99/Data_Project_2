@@ -23,6 +23,7 @@ fake = Faker('es_ES')
 
 necesidades = ["Comida y Agua", "Medicinas", "Maquinaria Pesada"]
 voluntario_disponibilidad = ["Inmediata", "Un café y voy", "Puede tardar"]
+urgencias = ["Baja", "Media", "Alta"]
 
 def generar_id_unico(prefix):
     return f"{prefix}{random.randint(1000, 100000)}"
@@ -65,6 +66,7 @@ def generar_datos_automaticamente():
                     "Edad": random.randint(18, 80),
                     "Telefono": str(random.randint(600000000, 699999999)),
                     "Necesidad": random.choice(necesidades),
+                    "Nivel de Urgencia": random.choice(voluntario_disponibilidad),
                     "Timestamp": generar_timestamp(),
                     "Ubicacion": generar_ubicacion()
                 })
@@ -84,7 +86,7 @@ def generar_datos_automaticamente():
                     "Edad": random.randint(18, 80),
                     "Telefono": str(random.randint(600000000, 699999999)),
                     "Necesidad": random.choice(necesidades),
-                    "Nivel de Urgencias": random.choice(voluntario_disponibilidad),
+                    "Nivel de Urgencia": random.choice(voluntario_disponibilidad),
                     "Timestamp": generar_timestamp(),
                     "Ubicacion": generar_ubicacion()
                 })
