@@ -2,6 +2,7 @@ from fastapi import FastAPI
 import json
 import random
 import time
+import threading
 from faker import Faker
 from datetime import datetime
 from google.cloud import pubsub_v1
@@ -20,7 +21,7 @@ app = FastAPI()
 
 fake = Faker('es_ES')
 
-urgencias = [ "Alta", "Media", "Baja"]
+urgencias = ["Alta", "Media", "Baja"]
 necesidades = ["Agua", "Comida", "Maquinaria Pesada", "Herramientas manuales", "Fontaneria", "Electricista", "Hogar", "Ropa", "Medicinas", "Limpieza"]
 voluntario_disponibilidad = ["Inmediata", "Un café y voy", "Puede tardar"]
 
@@ -44,41 +45,54 @@ def enviar_a_pubsub(topic_path, mensaje):
     future.result()
     return {"status": "success", "message": "Mensaje enviado"}
 
-@app.post("/generate_requests")
-def generate_requests(n: int = 1):
-    peticiones = []
-    for _ in range(n):
-        peticion = {
-            "ID": generar_id_unico("A"),
-            "Nombre": normalizar_nombre(fake.name()),
-            "Edad": random.randint(18, 80),
-            "Telefono": str(random.randint(600000000, 699999999)),
-            "Nivel_Urgencia": random.choice(urgencias),
-            "Necesidad": random.choice(necesidades),
-            "Timestamp": generar_timestamp(),
-            "Ubicacion": generar_ubicacion()
-        }
-        enviar_a_pubsub(topic_requests_path, peticion)
-        peticiones.append(peticion)
-    return {"generated_requests": peticiones}
+def generar_datos_automaticamente():
+    """Genera solicitudes de ayuda y voluntarios de forma automática."""
+    max_requests = 500
+    max_helpers = 500
+    requests_generated = 0
+    helpers_generated = 0
 
-@app.post("/generate_helpers")
-def generate_helpers(n: int = 1):
-    voluntarios = []
-    for _ in range(n):
-        voluntario = {
-            "ID": generar_id_unico("V"),
-            "Nombre": normalizar_nombre(fake.name()),
-            "Edad": random.randint(18, 80),
-            "Telefono": str(random.randint(600000000, 699999999)),
-            "Necesidad": random.choice(necesidades),
-            "Nivel de Urgencias": random.choice(voluntario_disponibilidad),
-            "Timestamp": generar_timestamp(),
-            "Ubicacion": generar_ubicacion()
-        }
-        enviar_a_pubsub(topic_helpers_path, voluntario)
-        voluntarios.append(voluntario)
-    return {"generated_helpers": voluntarios}
+    print(f"Generando datos aleatorios hasta llegar a {max_requests} peticiones y {max_helpers} voluntarios...")
+
+    while requests_generated < max_requests or helpers_generated < max_helpers:
+        if requests_generated < max_requests:
+            for _ in range(10):  # Genera 10 solicitudes por iteración
+                peticion = {
+                    "ID": generar_id_unico("A"),
+                    "Nombre": normalizar_nombre(fake.name()),
+                    "Edad": random.randint(18, 80),
+                    "Telefono": str(random.randint(600000000, 699999999)),
+                    "Nivel_Urgencia": random.choice(urgencias),
+                    "Necesidad": random.choice(necesidades),
+                    "Timestamp": generar_timestamp(),
+                    "Ubicacion": generar_ubicacion()
+                }
+                enviar_a_pubsub(topic_requests_path, peticion)
+            requests_generated += 10
+            print(f"Peticiones generadas: {requests_generated}")
+
+        if helpers_generated < max_helpers:
+            for _ in range(10):  # Genera 10 voluntarios por iteración
+                voluntario = {
+                    "ID": generar_id_unico("V"),
+                    "Nombre": normalizar_nombre(fake.name()),
+                    "Edad": random.randint(18, 80),
+                    "Telefono": str(random.randint(600000000, 699999999)),
+                    "Necesidad": random.choice(necesidades),
+                    "Nivel de Urgencias": random.choice(voluntario_disponibilidad),
+                    "Timestamp": generar_timestamp(),
+                    "Ubicacion": generar_ubicacion()
+                }
+                enviar_a_pubsub(topic_helpers_path, voluntario)
+            helpers_generated += 10
+            print(f"Voluntarios generados: {helpers_generated}")
+
+        time.sleep(2)  # Espera 2 segundos antes de la siguiente iteración
+
+    print("Generación completa.")
+
+# Iniciar la generación automática en un hilo separado para no bloquear FastAPI
+threading.Thread(target=generar_datos_automaticamente, daemon=True).start()
 
 @app.get("/")
 def root():
