@@ -1,77 +1,59 @@
 import apache_beam as beam
-from apache_beam.options.pipeline_options import PipelineOptions
-from datetime import datetime
-import logging
 import json
+from apache_beam.options.pipeline_options import PipelineOptions
 
+# Configuración del proyecto
 project_id = "data-project-2-449815"
 subscription_ayuda = "ayuda-sub"
 subscription_voluntarios = "voluntarios-sub"
 
-dataset_id = "dataflow_matches"
-matches_table = "matches"
-no_matches_table = "no_matches"
-
-MATCHES_TAG = "matches"
-NO_MATCH_TAG = "no_matches"
-
-urgencias_map = {
-    "Alta": "Inmediata",
-    "Media": "Un café y voy",
-    "Baja": "Puede tardar"
+# Tabla de correspondencia entre Nivel de Urgencia (Petición) y Nivel de Urgencias (Voluntario)
+matching_criterios = {
+    "Alta": ["Inmediata"],
+    "Media": ["Un café y voy"],
+    "Baja": ["Puede tardar"]
 }
 
 def DecodificarMensaje(msg):
-    try:
-        message = msg.decode("utf-8")
-        decodificado = json.loads(message)
-        return decodificado["Necesidad"], decodificado
-    except Exception as e:
-        logging.error(f"Error decodificando mensaje: {msg} - {e}")
-        return None
+    """Decodifica un mensaje Pub/Sub y lo convierte en JSON."""
+    message = msg.decode("utf-8")
+    decodificado = json.loads(message)
+    return decodificado["Necesidad"], decodificado  # Agrupamos por Necesidad
 
-def FiltrarYEmparejar(elemento):
-    try:
-        if not isinstance(elemento, tuple) or len(elemento) != 2:
-            return []
-        
-        necesidad, datos = elemento
-        peticiones = datos[0]  # Lista de peticiones
-        voluntarios = datos[1]  # Lista de voluntarios
+class FiltrarMatchingPorUrgencia(beam.DoFn):
+    """
+    Empareja peticiones de ayuda con voluntarios según:
+    - Necesidad (ya agrupada por CoGroupByKey)
+    - Nivel de Urgencia (petición) vs Nivel de Urgencias (voluntario)
+    """
 
-        matches = []
-        no_matches = []
-        
-        for peticion in peticiones:
-            matched = False
-            for voluntario in voluntarios:
-                if (
-                    peticion.get("Nivel de Urgencia") == urgencias_map.get(voluntario.get("Nivel de Urgencias"))
-                    and peticion.get("ID", "").startswith("A")
-                    and voluntario.get("ID", "").startswith("V")
-                ):
-                    matches.append({"peticion": json.dumps(peticion), "voluntario": json.dumps(voluntario)})
-                    matched = True
-                    break
-            if not matched:
-                no_matches.append({"peticion": json.dumps(peticion)})
-        
-        yield beam.pvalue.TaggedOutput(MATCHES_TAG, matches)
-        yield beam.pvalue.TaggedOutput(NO_MATCH_TAG, no_matches)
+    def process(self, elemento):
+        necesidad, (solicitudes, voluntarios) = elemento  # Desempaquetar correctamente
 
-    except Exception as e:
-        logging.error(f"Error en FiltrarYEmparejar con elemento {elemento}: {e}")
-        return []
+        for solicitud in solicitudes:
+            nivel_urgencia = solicitud["Nivel de Urgencia"]
+
+            # Filtrar voluntarios compatibles según la tabla de matching
+            voluntarios_compatibles = [
+                v for v in voluntarios if v["Nivel de Urgencias"] in matching_criterios[nivel_urgencia]
+            ]
+
+            if voluntarios_compatibles:
+                voluntario_asignado = voluntarios_compatibles[0]  # Tomamos el primer voluntario compatible
+                yield beam.pvalue.TaggedOutput("matches", {
+                    "Solicitud": solicitud,
+                    "Voluntario": voluntario_asignado
+                })
+            else:
+                yield beam.pvalue.TaggedOutput("no_matches", solicitud)  # Peticiones sin match
 
 def run():
-    job_name = f"pubsub-matching-job-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}"
-    
     pipeline_options = PipelineOptions(
         streaming=True,
         save_main_session=True,
         runner='DataflowRunner',
         project=project_id,
-        job_name=job_name,
+        job_name='pubsub-matching-job',
         region='europe-west1',
         temp_location='gs://data-project-2/temp',
         staging_location='gs://data-project-2/staging'
@@ -82,7 +64,6 @@ def run():
             p
             | "Leer datos de ayuda" >> beam.io.ReadFromPubSub(subscription=f"projects/{project_id}/subscriptions/{subscription_ayuda}")
             | "Decodificar mensajes de ayuda" >> beam.Map(DecodificarMensaje)
-            | "Filtrar Nulos Ayuda" >> beam.Filter(lambda x: x is not None)
             | "Ventana fija de ayuda" >> beam.WindowInto(beam.window.FixedWindows(20))
         )
 
@@ -90,7 +71,6 @@ def run():
             p
             | "Leer datos de voluntarios" >> beam.io.ReadFromPubSub(subscription=f"projects/{project_id}/subscriptions/{subscription_voluntarios}")
             | "Decodificar mensajes de voluntarios" >> beam.Map(DecodificarMensaje)
-            | "Filtrar Nulos Voluntarios" >> beam.Filter(lambda x: x is not None)
             | "Ventana fija de voluntarios" >> beam.WindowInto(beam.window.FixedWindows(20))
         )
 
@@ -99,28 +79,16 @@ def run():
             | "Juntar por necesidad" >> beam.CoGroupByKey()
         )
 
-        resultados = (
-            grouped_data
-            | "Filtrar y Emparejar" >> beam.FlatMap(FiltrarYEmparejar).with_outputs(MATCHES_TAG, NO_MATCH_TAG)
-        )
+        # Aplicar el DoFn para hacer el matching
+        emparejamientos = grouped_data | "Filtrar Matching" >> beam.ParDo(FiltrarMatchingPorUrgencia()).with_outputs("matches", "no_matches")
 
-        matches_pcoll = resultados[MATCHES_TAG]
-        no_matches_pcoll = resultados[NO_MATCH_TAG]
+        # Extraer cada PCollection
+        matches = emparejamientos.matches
+        no_matches = emparejamientos.no_matches
 
-        matches_pcoll | "Guardar Matches en BQ" >> beam.io.WriteToBigQuery(
-            table=f"{project_id}:{dataset_id}.{matches_table}",
-            schema="peticion:STRING, voluntario:STRING",
-            create_disposition=beam.io.BigQueryDisposition.CREATE_IF_NEEDED,
-            write_disposition=beam.io.BigQueryDisposition.WRITE_APPEND
-        )
+        # Printear resultados
+        matches | "Print Matches" >> beam.Map(print)
+        no_matches | "Print No Matches" >> beam.Map(print)
 
-        no_matches_pcoll | "Guardar No Matches en BQ" >> beam.io.WriteToBigQuery(
-            table=f"{project_id}:{dataset_id}.{no_matches_table}",
-            schema="peticion:STRING",
-            create_disposition=beam.io.BigQueryDisposition.CREATE_IF_NEEDED,
-            write_disposition=beam.io.BigQueryDisposition.WRITE_APPEND
-        )
-
-logging.getLogger().setLevel(logging.INFO)
-logging.info("Iniciando el proceso de Dataflow...")
+# Ejecutar el proceso
 run()
