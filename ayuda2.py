@@ -19,7 +19,7 @@ subscription_voluntarios = "voluntarios-sub"
 # Tabla de correspondencia entre Nivel de Urgencia (Petición) y Nivel de Urgencias (Voluntario)
 matching_criterios = {
     "Alta": ["Inmediata"],
-    "Media": ["Un café y voy"],
+    "Media": ["Un cafe y voy"],
     "Baja": ["Puede tardar"]
 }
 

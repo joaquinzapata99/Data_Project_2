@@ -22,7 +22,7 @@ app = FastAPI()
 fake = Faker('es_ES')
 
 necesidades = ["Comida y Agua", "Medicinas", "Maquinaria Pesada"]
-voluntario_disponibilidad = ["Inmediata", "Un café y voy", "Puede tardar"]
+voluntario_disponibilidad = ["Inmediata", "Un cafe y voy", "Puede tardar"]
 urgencias = ["Baja", "Media", "Alta"]
 
 def generar_id_unico(prefix):
