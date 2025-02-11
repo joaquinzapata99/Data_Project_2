@@ -36,8 +36,10 @@ def FiltrarYEmparejar(elemento):
             return []
         
         necesidad, datos = elemento
-        peticiones = datos[0]  # Lista de peticiones
-        voluntarios = datos[1]  # Lista de voluntarios
+        peticiones = datos.get(subscription_ayuda, [])  # Lista de peticiones
+        voluntarios = datos.get(subscription_voluntarios, [])  # Lista de voluntarios
+
+        logging.info(f"Procesando necesidad: {necesidad}, Peticiones: {len(peticiones)}, Voluntarios: {len(voluntarios)}")
 
         matches = []
         no_matches = []
@@ -46,7 +48,7 @@ def FiltrarYEmparejar(elemento):
             matched = False
             for voluntario in voluntarios:
                 if (
-                    peticion.get("Nivel de Urgencia") == urgencias_map.get(voluntario.get("Nivel de Urgencias"))
+                    peticion.get("Nivel de Urgencia") == urgencias_map.get(voluntario.get("Nivel de Urgencia"))
                     and peticion.get("ID", "").startswith("A")
                     and voluntario.get("ID", "").startswith("V")
                 ):
@@ -74,7 +76,8 @@ def run():
         job_name=job_name,
         region='europe-west1',
         temp_location='gs://data-project-2/temp',
-        staging_location='gs://data-project-2/staging'
+        staging_location='gs://data-project-2/staging',
+        experiments=['use_runner_v2']
     )
 
     with beam.Pipeline(options=pipeline_options) as p:
@@ -95,7 +98,7 @@ def run():
         )
 
         grouped_data = (
-            (datos_ayuda, datos_voluntarios)
+            {subscription_ayuda: datos_ayuda, subscription_voluntarios: datos_voluntarios}
             | "Juntar por necesidad" >> beam.CoGroupByKey()
         )
 
