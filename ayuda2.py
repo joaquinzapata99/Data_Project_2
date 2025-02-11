@@ -36,34 +36,26 @@ def FiltrarYEmparejar(elemento):
             return []
         
         necesidad, datos = elemento
-        peticiones = datos.get(subscription_ayuda, [])  # Lista de peticiones
-        voluntarios = datos.get(subscription_voluntarios, [])  # Lista de voluntarios
+        peticiones = datos.get(subscription_ayuda, [])
+        voluntarios = datos.get(subscription_voluntarios, [])
 
         logging.info(f"Procesando necesidad: {necesidad}, Peticiones: {len(peticiones)}, Voluntarios: {len(voluntarios)}")
 
-        matches = []
-        no_matches = []
-        
         for peticion in peticiones:
             matched = False
             for voluntario in voluntarios:
                 if (
-                    peticion.get("Nivel de Urgencia") == urgencias_map.get(voluntario.get("Nivel de Urgencia"))
+                    peticion.get("Nivel de Urgencia") == urgencias_map.get(voluntario.get("Nivel de Urgencias"))
                     and peticion.get("ID", "").startswith("A")
                     and voluntario.get("ID", "").startswith("V")
                 ):
-                    matches.append({"peticion": json.dumps(peticion), "voluntario": json.dumps(voluntario)})
+                    yield beam.pvalue.TaggedOutput(MATCHES_TAG, {"peticion": peticion, "voluntario": voluntario})
                     matched = True
                     break
             if not matched:
-                no_matches.append({"peticion": json.dumps(peticion)})
-        
-        yield beam.pvalue.TaggedOutput(MATCHES_TAG, matches)
-        yield beam.pvalue.TaggedOutput(NO_MATCH_TAG, no_matches)
-
+                yield beam.pvalue.TaggedOutput(NO_MATCH_TAG, {"peticion": peticion})
     except Exception as e:
         logging.error(f"Error en FiltrarYEmparejar con elemento {elemento}: {e}")
-        return []
 
 def run():
     job_name = f"pubsub-matching-job-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}"
@@ -86,7 +78,7 @@ def run():
             | "Leer datos de ayuda" >> beam.io.ReadFromPubSub(subscription=f"projects/{project_id}/subscriptions/{subscription_ayuda}")
             | "Decodificar mensajes de ayuda" >> beam.Map(DecodificarMensaje)
             | "Filtrar Nulos Ayuda" >> beam.Filter(lambda x: x is not None)
-            | "Ventana fija de ayuda" >> beam.WindowInto(beam.window.FixedWindows(20))
+            | "Ventana fija de ayuda" >> beam.WindowInto(beam.window.FixedWindows(60))
         )
 
         datos_voluntarios = (
@@ -94,7 +86,7 @@ def run():
             | "Leer datos de voluntarios" >> beam.io.ReadFromPubSub(subscription=f"projects/{project_id}/subscriptions/{subscription_voluntarios}")
             | "Decodificar mensajes de voluntarios" >> beam.Map(DecodificarMensaje)
             | "Filtrar Nulos Voluntarios" >> beam.Filter(lambda x: x is not None)
-            | "Ventana fija de voluntarios" >> beam.WindowInto(beam.window.FixedWindows(20))
+            | "Ventana fija de voluntarios" >> beam.WindowInto(beam.window.FixedWindows(60))
         )
 
         grouped_data = (
@@ -110,18 +102,48 @@ def run():
         matches_pcoll = resultados[MATCHES_TAG]
         no_matches_pcoll = resultados[NO_MATCH_TAG]
 
+        schema_matches = {
+            "fields": [
+                {"name": "peticion", "type": "RECORD", "mode": "NULLABLE", "fields": [
+                    {"name": "ID", "type": "STRING"},
+                    {"name": "Nombre", "type": "STRING"},
+                    {"name": "Nivel de Urgencia", "type": "STRING"},
+                    {"name": "Necesidad", "type": "STRING"}
+                ]},
+                {"name": "voluntario", "type": "RECORD", "mode": "NULLABLE", "fields": [
+                    {"name": "ID", "type": "STRING"},
+                    {"name": "Nombre", "type": "STRING"},
+                    {"name": "Nivel de Urgencias", "type": "STRING"},
+                    {"name": "Necesidad", "type": "STRING"}
+                ]}
+            ]
+        }
+
+        schema_no_matches = {
+            "fields": [
+                {"name": "peticion", "type": "RECORD", "mode": "NULLABLE", "fields": [
+                    {"name": "ID", "type": "STRING"},
+                    {"name": "Nombre", "type": "STRING"},
+                    {"name": "Nivel de Urgencia", "type": "STRING"},
+                    {"name": "Necesidad", "type": "STRING"}
+                ]}
+            ]
+        }
+
         matches_pcoll | "Guardar Matches en BQ" >> beam.io.WriteToBigQuery(
             table=f"{project_id}:{dataset_id}.{matches_table}",
-            schema="peticion:STRING, voluntario:STRING",
+            schema=schema_matches,
             create_disposition=beam.io.BigQueryDisposition.CREATE_IF_NEEDED,
-            write_disposition=beam.io.BigQueryDisposition.WRITE_APPEND
+            write_disposition=beam.io.BigQueryDisposition.WRITE_APPEND,
+            batch_size=500
         )
 
         no_matches_pcoll | "Guardar No Matches en BQ" >> beam.io.WriteToBigQuery(
             table=f"{project_id}:{dataset_id}.{no_matches_table}",
-            schema="peticion:STRING",
+            schema=schema_no_matches,
             create_disposition=beam.io.BigQueryDisposition.CREATE_IF_NEEDED,
-            write_disposition=beam.io.BigQueryDisposition.WRITE_APPEND
+            write_disposition=beam.io.BigQueryDisposition.WRITE_APPEND,
+            batch_size=500
         )
 
 logging.getLogger().setLevel(logging.INFO)
