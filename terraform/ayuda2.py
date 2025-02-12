@@ -3,10 +3,21 @@ import json
 from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.io.gcp.bigquery import BigQueryDisposition
 
-# -----------------------------
-# Configuración de proyecto y BQ
-# -----------------------------
-project_id = "data-project-2-449815"
+def parse_tfvars(file_path):
+    variables = {}
+    with open(file_path, "r") as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#"):  # Ignorar comentarios y líneas vacías
+                key, value = line.split("=", 1)
+                key = key.strip()
+                value = value.strip().strip('"')  # Eliminar comillas
+                variables[key] = value
+    return variables
+
+# Leer variables desde terraform.tfvars
+tf_vars = parse_tfvars("terraform.tfvars")
+project_id = tf_vars.get("project_id")
 dataset_id = "dataflow_matches"
 
 table_id_matches = "match"
