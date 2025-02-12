@@ -1,34 +1,36 @@
-# order_events Pub/Sub topic and subscription
-resource "google_pubsub_topic" "ayuda" {
-  name = "ayuda"
+module "pubsub" {
+  source         = "./module/pubsub"
+  project_id     = var.project_id
+  pubsub_topics  = [
+    { topic_name = "ayuda", subscription_name = "ayuda-sub" },
+    { topic_name = "voluntarios", subscription_name = "voluntarios-sub" }
+  ]
 }
 
-resource "google_pubsub_subscription" "ayuda_sub" {
-  name  = "${google_pubsub_topic.ayuda.name}-sub"
-  topic = google_pubsub_topic.ayuda.name
+module "bigquery" {
+  source     = "./module/bigquery"
+  project_id = var.project_id
+  bq_dataset = "dataflow_matches"
+  
+  tables = [
+    { name = "match", schema = "schemas/match.json" },
+    { name = "no_match_voluntarios", schema = "schemas/no_match_voluntarios.json" },
+    { name = "no_matches_ayudadores", schema = "schemas/no_matches_ayudadores.json" }
+  ]
 }
 
-# order_events Pub/Sub topic and subscription
-resource "google_pubsub_topic" "voluntarios" {
-  name = "voluntarios"
+module "artifact_registry" {
+  source           = "./module/artifact_registry"
+  project_id       = var.project_id
+  region           = var.region
+  repository_name  = var.repository_name
 }
 
-resource "google_pubsub_subscription" "voluntarios" {
-  name  = "${google_pubsub_topic.voluntarios.name}-sub"
-  topic = google_pubsub_topic.voluntarios.name
-}
-
-resource "google_storage_bucket" "auto-expire" {
-  name          = "data-project-2"
-  location      = var.region
-  force_destroy = true
-
-  lifecycle_rule {
-    condition {
-      age = 3
-    }
-    action {
-      type = "Delete"
-    }
-  }
+module "cloud_run_job" {
+  source             = "./module/cloud_run_job"
+  project_id         = var.project_id
+  region             = var.region
+  cloud_run_job_name = var.cloud_run_job_name
+  container_image    = module.artifact_registry.image_url
+  artifact_registry_dependency = module.artifact_registry
 }

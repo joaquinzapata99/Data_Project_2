@@ -1,0 +1,12 @@
+[
+    {"name": "Voluntario_ID", "type": "STRING", "mode": "NULLABLE"},
+    {"name": "Voluntario_Nombre", "type": "STRING", "mode": "NULLABLE"},
+    {"name": "Voluntario_Edad", "type": "INTEGER", "mode": "NULLABLE"},
+    {"name": "Voluntario_Telefono", "type": "STRING", "mode": "NULLABLE"},
+    {"name": "Voluntario_Necesidad", "type": "STRING", "mode": "NULLABLE"},
+    {"name": "Voluntario_NivelUrgencias", "type": "STRING", "mode": "NULLABLE"},
+    {"name": "Voluntario_Timestamp", "type": "STRING", "mode": "NULLABLE"},
+    {"name": "Voluntario_Lat", "type": "FLOAT", "mode": "NULLABLE"},
+    {"name": "Voluntario_Lng", "type": "FLOAT", "mode": "NULLABLE"}
+]
+  
