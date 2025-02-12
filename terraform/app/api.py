@@ -22,7 +22,7 @@ app = FastAPI()
 fake = Faker('es_ES')
 
 necesidades = ["Comida y Agua", "Medicinas", "Maquinaria Pesada"]
-voluntario_disponibilidad = ["Inmediata", "Un café y voy", "Puede tardar"]
+voluntario_disponibilidad = ["Inmediata", "Un cafe y voy", "Puede tardar"]
 urgencias = ["Baja", "Media", "Alta"]
 
 def generar_id_unico(prefix):
@@ -40,7 +40,7 @@ def normalizar_nombre(nombre):
     return unidecode.unidecode(nombre)
 
 def enviar_a_pubsub(topic_path, mensajes):
-    """Publica mensajes en Pub/Sub en un solo batch"""
+    """Publica mensajes en Pub/Sub en un batch."""
     try:
         futures = []
         for mensaje in mensajes:
@@ -55,10 +55,11 @@ def enviar_a_pubsub(topic_path, mensajes):
         print(f"Error al enviar mensaje a Pub/Sub: {e}")
 
 def generar_datos_automaticamente():
-    """Genera solicitudes de ayuda y voluntarios de forma automática en lotes."""
-    print("Generando datos aleatorios de forma continua...")
+    """Genera solicitudes de ayuda y voluntarios de forma continua, pero desfasados y desbalanceados."""
+    print("Generando datos con desbalance...")
 
     while True:
+        # 1) Generar un batch grande de peticiones
         batch_requests = [
             {
                 "ID": generar_id_unico("A"),
@@ -70,9 +71,17 @@ def generar_datos_automaticamente():
                 "Timestamp": generar_timestamp(),
                 "Ubicacion": generar_ubicacion()
             }
-            for _ in range(100)  # Genera 100 solicitudes por iteración
+            for _ in range(100)  # 100 peticiones
         ]
 
+        # Enviar solo peticiones
+        enviar_a_pubsub(topic_requests_path, batch_requests)
+        print(f"Enviadas {len(batch_requests)} peticiones")
+
+        # 2) Esperar un poco para que esas peticiones se "acumulen" solas en la ventana
+        time.sleep(3)
+
+        # 3) Generar un batch más pequeño de voluntarios
         batch_helpers = [
             {
                 "ID": generar_id_unico("V"),
@@ -84,19 +93,19 @@ def generar_datos_automaticamente():
                 "Timestamp": generar_timestamp(),
                 "Ubicacion": generar_ubicacion()
             }
-            for _ in range(100)  # Genera 100 voluntarios por iteración
+            for _ in range(20)  # 20 voluntarios (menos que 100)
         ]
 
-        enviar_a_pubsub(topic_requests_path, batch_requests)
+        # Enviar voluntarios
         enviar_a_pubsub(topic_helpers_path, batch_helpers)
+        print(f"Enviados {len(batch_helpers)} voluntarios")
 
-        print(f"Generados: {len(batch_requests)} peticiones, {len(batch_helpers)} voluntarios")
-
-        time.sleep(1)  # Reducido el tiempo de espera para mejor eficiencia
+        # 4) Otra espera corta antes de la siguiente iteración
+        time.sleep(1)
 
 # Iniciar la generación automática en un hilo separado para no bloquear FastAPI
 threading.Thread(target=generar_datos_automaticamente, daemon=True).start()
 
 @app.get("/")
 def root():
-    return {"message": "API para generación de datos aleatorios"}
+    return {"message": "API para generación de datos aleatorios desbalanceados"}
