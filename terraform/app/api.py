@@ -7,6 +7,7 @@ from faker import Faker
 from datetime import datetime
 from google.cloud import pubsub_v1
 import unidecode
+import math
 
 # Configuración de Pub/Sub
 PROJECT_ID = "data-project-2-449815"
@@ -21,7 +22,7 @@ app = FastAPI()
 
 fake = Faker('es_ES')
 
-necesidades = ["Comida y Agua", "Medicinas", "Maquinaria Pesada"]
+necesidades = ["Comida y Agua", "Medicinas", "Maquinaria Pesada", "Refugio Temporal", "Ropa", "Ayuda a animales"]
 voluntario_disponibilidad = ["Inmediata", "Un cafe y voy", "Puede tardar"]
 urgencias = ["Baja", "Media", "Alta"]
 
@@ -31,10 +32,26 @@ def generar_id_unico(prefix):
 def generar_timestamp():
     return datetime.utcnow().isoformat()
 
+import math
+
 def generar_ubicacion():
-    latitud = round(random.uniform(39.45, 39.50), 6)
-    longitud = round(random.uniform(-0.40, -0.35), 6)
-    return {"latitud": latitud, "longitud": longitud}
+    # Centro aproximado de Valencia
+    centro_latitud = 39.4699
+    centro_longitud = -0.3763
+
+    # Radio máximo en grados (aprox. 10 km alrededor del centro de Valencia)
+    radio_km = 10
+    radio_grados = radio_km / 111  # Aproximación: 1 grado ≈ 111 km
+
+    # Generar un ángulo y un radio aleatorio dentro del círculo
+    angulo = random.uniform(0, 2 * math.pi)
+    radio = random.uniform(0, radio_grados)  # Distribución uniforme dentro del círculo
+
+    # Convertir coordenadas polares a coordenadas geográficas
+    latitud = centro_latitud + (radio * math.cos(angulo))
+    longitud = centro_longitud + (radio * math.sin(angulo)) / math.cos(math.radians(centro_latitud))  # Ajuste por la curvatura de la Tierra
+
+    return {"latitud": round(latitud, 6), "longitud": round(longitud, 6)}
 
 def normalizar_nombre(nombre):
     return unidecode.unidecode(nombre)
