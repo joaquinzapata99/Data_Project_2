@@ -3,19 +3,15 @@ import json
 from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.io.gcp.bigquery import BigQueryDisposition
 
-from google.cloud import bigquery
-
 # -----------------------------
 # Configuración de proyecto y BQ
 # -----------------------------
 project_id = "data-project-2-449815"
-dataset_id = "matching_data"
+dataset_id = "dataflow_matches"
 
-table_id_matches = "matches"
-
-# Tablas separadas para NO matches
+table_id_matches = "match"
 table_id_no_matches_solicitudes = "no_matches_solicitudes"
-table_id_no_matches_voluntarios = "no_matches_voluntarios"
+table_id_no_matches_voluntarios = "no_match_voluntarios"
 
 subscription_ayuda = "ayuda-sub"
 subscription_voluntarios = "voluntarios-sub"
@@ -81,7 +77,6 @@ bq_schema_no_matches_voluntarios = {
         {"name": "Voluntario_Lng", "type": "FLOAT", "mode": "NULLABLE"},
     ]
 }
-
 
 def DecodificarMensaje(msg):
     """Lee el JSON crudo, y retorna (Necesidad, dict_completo)."""
@@ -177,21 +172,7 @@ class FiltrarMatchingPorUrgencia(beam.DoFn):
         for voluntario_sin_usar in voluntarios_disponibles:
             yield beam.pvalue.TaggedOutput("no_matches_voluntarios", voluntario_sin_usar)
 
-def create_dataset_if_not_exists(project_id, dataset_id):
-    client = bigquery.Client(project=project_id)
-    dataset_ref = bigquery.Dataset(f"{project_id}.{dataset_id}")
-    dataset_ref.location = "EU" 
-
-    try:
-        client.create_dataset(dataset_ref, exists_ok=True)
-        print(f"Dataset '{dataset_id}' en proyecto '{project_id}' verificado/creado.")
-    except Exception as e:
-        print(f"Error creando/verificando dataset: {e}")
-        raise
-
 def run():
-    create_dataset_if_not_exists(project_id, dataset_id)
-
     pipeline_options = PipelineOptions(
         streaming=True,
         save_main_session=True,
@@ -229,7 +210,6 @@ def run():
             | "CoGroupByKey Necesidad" >> beam.CoGroupByKey()
         )
 
-        # SIN especificar un main output => solo side outputs nominales
         resultado = (
             grouped_data
             | "Filtrar Matching"
@@ -237,7 +217,6 @@ def run():
                .with_outputs("matches", "no_matches_solicitudes", "no_matches_voluntarios")
         )
 
-        # Accedemos a cada salida por su nombre
         matches = resultado["matches"]
         no_matches_solicitudes = resultado["no_matches_solicitudes"]
         no_matches_voluntarios = resultado["no_matches_voluntarios"]
@@ -248,7 +227,7 @@ def run():
             | "Escribir matches" >> beam.io.WriteToBigQuery(
                 table=f"{project_id}:{dataset_id}.{table_id_matches}",
                 schema=bq_schema_matches,
-                create_disposition=BigQueryDisposition.CREATE_IF_NEEDED,
+                create_disposition=BigQueryDisposition.CREATE_NEVER,
                 write_disposition=BigQueryDisposition.WRITE_APPEND
             )
         )
@@ -259,7 +238,7 @@ def run():
             | "Escribir no_matches_solicitudes" >> beam.io.WriteToBigQuery(
                 table=f"{project_id}:{dataset_id}.{table_id_no_matches_solicitudes}",
                 schema=bq_schema_no_matches_solicitudes,
-                create_disposition=BigQueryDisposition.CREATE_IF_NEEDED,
+                create_disposition=BigQueryDisposition.CREATE_NEVER,
                 write_disposition=BigQueryDisposition.WRITE_APPEND
             )
         )
@@ -270,7 +249,7 @@ def run():
             | "Escribir no_matches_voluntarios" >> beam.io.WriteToBigQuery(
                 table=f"{project_id}:{dataset_id}.{table_id_no_matches_voluntarios}",
                 schema=bq_schema_no_matches_voluntarios,
-                create_disposition=BigQueryDisposition.CREATE_IF_NEEDED,
+                create_disposition=BigQueryDisposition.CREATE_NEVER,
                 write_disposition=BigQueryDisposition.WRITE_APPEND
             )
         )
