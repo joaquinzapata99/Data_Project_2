@@ -1,0 +1,20 @@
+[
+  {"name": "Solicitud_ID", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "Solicitud_Nombre", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "Solicitud_Edad", "type": "INTEGER", "mode": "NULLABLE"},
+  {"name": "Solicitud_Telefono", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "Solicitud_Necesidad", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "Solicitud_NivelUrgencia", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "Solicitud_Timestamp", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "Solicitud_Lat", "type": "FLOAT", "mode": "NULLABLE"},
+  {"name": "Solicitud_Lng", "type": "FLOAT", "mode": "NULLABLE"},
+  {"name": "Voluntario_ID", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "Voluntario_Nombre", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "Voluntario_Edad", "type": "INTEGER", "mode": "NULLABLE"},
+  {"name": "Voluntario_Telefono", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "Voluntario_Necesidad", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "Voluntario_NivelUrgencias", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "Voluntario_Timestamp", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "Voluntario_Lat", "type": "FLOAT", "mode": "NULLABLE"},
+  {"name": "Voluntario_Lng", "type": "FLOAT", "mode": "NULLABLE"}
+]
