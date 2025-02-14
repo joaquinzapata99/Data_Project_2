@@ -39,7 +39,7 @@ def enviar_a_pubsub(topic, datos):
     future.result()
 
 # Definir las pestañas de la aplicación
-menu = ["Encuesta Voluntarios", "Encuesta Afectados", "Mapa de Solicitudes y Voluntarios", "Consulta por tu ID"]
+menu = ["Encuesta Voluntarios", "Encuesta Afectados", "Mapa de Solicitudes y Voluntarios", "Consulta por tu ID", "Ver Todos los Matches"]
 choice = st.sidebar.selectbox("Selecciona una opción", menu)
 
 # Opciones predefinidas
@@ -229,3 +229,111 @@ elif choice == "Consulta por tu ID":
                         st.dataframe(df)
         else:
             st.warning("Por favor, ingrese un ID antes de buscar.")
+
+elif choice == "Ver Todos los Matches":
+    st.title("Actividad de Matches en Vivo")
+    
+    # Configurar auto-refresh más frecuente para mostrar datos en vivo
+    refresh_interval = st.sidebar.slider("Intervalo de actualización (segundos)", 1, 30, 3)
+    st_autorefresh(interval=refresh_interval * 1000, key="live_matches_recarga")
+    
+    # Contador para mantener el número de matches vistos
+    if 'last_seen_matches' not in st.session_state:
+        st.session_state.last_seen_matches = 0
+    
+    # Consulta para obtener los matches más recientes
+    QUERY_ALL_MATCHES = """
+        SELECT 
+            Solicitud_ID, 
+            Voluntario_ID, 
+            Voluntario_Necesidad,
+            Solicitud_Timestamp,
+            Solicitud_Lat, 
+            Solicitud_Lng, 
+            Voluntario_Lat, 
+            Voluntario_Lng
+        FROM `data-project-2-449815.dataflow_matches.match`
+        ORDER BY Solicitud_Timestamp DESC
+        LIMIT 50
+    """
+    
+    try:
+        # Ejecutar la consulta
+        data_all_matches = client.query(QUERY_ALL_MATCHES).to_dataframe()
+        
+        if not data_all_matches.empty:
+            # Formatear timestamp
+            data_all_matches['Solicitud_Timestamp'] = pd.to_datetime(data_all_matches['Solicitud_Timestamp'])
+            data_all_matches['Fecha_Hora'] = data_all_matches['Solicitud_Timestamp'].dt.strftime('%d/%m/%Y %H:%M:%S')
+            data_all_matches['Tiempo_Relativo'] = (datetime.datetime.utcnow() - data_all_matches['Solicitud_Timestamp']).apply(lambda x: f"{x.seconds // 60} min" if x.days == 0 else f"{x.days} días")
+            
+            # Calcular nuevos matches
+            total_matches = len(data_all_matches)
+            nuevos_matches = total_matches - st.session_state.last_seen_matches
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Total de matches", total_matches)
+            with col2:
+                if nuevos_matches > 0:
+                    st.metric("Nuevos matches", nuevos_matches, f"+{nuevos_matches}")
+            
+            # Actualizar contador
+            st.session_state.last_seen_matches = total_matches
+                
+            # Mostrar actividad reciente
+            st.subheader("Actividad de Matches en Tiempo Real")
+            
+            # Mostrar los matches más recientes primero
+            for i, row in data_all_matches.head(15).iterrows():
+                # Determinar si es un match nuevo (menos de 1 minuto)
+                es_nuevo = (datetime.datetime.utcnow() - row['Solicitud_Timestamp']).total_seconds() < 60
+                
+                with st.container():
+                    if es_nuevo:
+                        st.markdown(f"""
+                            <div style='padding: 15px; border-radius: 10px; background-color: #28a745; color: white; margin-bottom: 10px; border: 1px solid #ddd;'>
+                                <h3>¡NUEVO MATCH! 🎉</h3>
+                                <p><strong>Hace:</strong> {row['Tiempo_Relativo']}</p>
+                                <p><strong>Solicitud ID:</strong> {row['Solicitud_ID']}</p>
+                                <p><strong>Voluntario ID:</strong> {row['Voluntario_ID']}</p>
+                                <p><strong>Tipo de Ayuda:</strong> {row['Voluntario_Necesidad']}</p>
+                            </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"""
+                            <div style='padding: 15px; border-radius: 10px; background-color: #f8f9fa; margin-bottom: 10px; border: 1px solid #ddd;'>
+                                <p><strong>Match hace:</strong> {row['Tiempo_Relativo']}</p>
+                                <p><strong>Solicitud ID:</strong> {row['Solicitud_ID']} - <strong>Voluntario ID:</strong> {row['Voluntario_ID']}</p>
+                                <p><strong>Tipo de Ayuda:</strong> {row['Voluntario_Necesidad']}</p>
+                            </div>
+                        """, unsafe_allow_html=True)
+            
+            # Visualización de actividad por horas recientes
+            st.subheader("Actividad de las Últimas 24 Horas")
+            
+            # Filtrar para las últimas 24 horas
+            last_24h = data_all_matches[data_all_matches['Solicitud_Timestamp'] > (datetime.datetime.utcnow() - datetime.timedelta(hours=24))]
+            
+            if not last_24h.empty:
+                # Agrupar por hora
+                last_24h['Hora'] = last_24h['Solicitud_Timestamp'].dt.floor('H')
+                matches_por_hora = last_24h.groupby('Hora').size().reset_index(name='Cantidad')
+                matches_por_hora = matches_por_hora.set_index('Hora')
+                
+                # Rellenar horas faltantes
+                idx = pd.date_range(end=datetime.datetime.utcnow().replace(minute=0, second=0, microsecond=0),
+                                   periods=24, freq='H')
+                matches_por_hora = matches_por_hora.reindex(idx, fill_value=0)
+                
+                # Crear gráfico
+                st.line_chart(matches_por_hora['Cantidad'])
+            else:
+                st.info("No hay datos de matches en las últimas 24 horas.")
+                
+        else:
+            st.info("Esperando nuevos matches... La información se actualizará automáticamente.")
+            
+    except Exception as e:
+        st.error(f"Error al obtener datos de BigQuery: {e}")
+        st.exception(e)
