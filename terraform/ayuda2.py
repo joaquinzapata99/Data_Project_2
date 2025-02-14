@@ -190,7 +190,7 @@ def run():
         runner='DataflowRunner',
         project=project_id,
         job_name='pubsub-matching-job',
-        region='europe-west1',
+        region='europe-west2',
         temp_location='gs://data-project-2/temp',
         staging_location='gs://data-project-2/staging'
     )
@@ -238,7 +238,7 @@ def run():
             | "Escribir matches" >> beam.io.WriteToBigQuery(
                 table=f"{project_id}:{dataset_id}.{table_id_matches}",
                 schema=bq_schema_matches,
-                create_disposition=BigQueryDisposition.CREATE_NEVER,
+                create_disposition=BigQueryDisposition.CREATE_IF_NEEDED,
                 write_disposition=BigQueryDisposition.WRITE_APPEND
             )
         )
@@ -249,7 +249,7 @@ def run():
             | "Escribir no_matches_solicitudes" >> beam.io.WriteToBigQuery(
                 table=f"{project_id}:{dataset_id}.{table_id_no_matches_solicitudes}",
                 schema=bq_schema_no_matches_solicitudes,
-                create_disposition=BigQueryDisposition.CREATE_NEVER,
+                create_disposition=BigQueryDisposition.CREATE_IF_NEEDED,
                 write_disposition=BigQueryDisposition.WRITE_APPEND
             )
         )
@@ -260,7 +260,7 @@ def run():
             | "Escribir no_matches_voluntarios" >> beam.io.WriteToBigQuery(
                 table=f"{project_id}:{dataset_id}.{table_id_no_matches_voluntarios}",
                 schema=bq_schema_no_matches_voluntarios,
-                create_disposition=BigQueryDisposition.CREATE_NEVER,
+                create_disposition=BigQueryDisposition.CREATE_IF_NEEDED,
                 write_disposition=BigQueryDisposition.WRITE_APPEND
             )
         )

@@ -40,7 +40,7 @@ def generar_ubicacion():
     centro_longitud = -0.3763
 
     # Radio máximo en grados (aprox. 10 km alrededor del centro de Valencia)
-    radio_km = 10
+    radio_km = 3
     radio_grados = radio_km / 111  # Aproximación: 1 grado ≈ 111 km
 
     # Generar un ángulo y un radio aleatorio dentro del círculo
