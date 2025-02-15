@@ -32,21 +32,18 @@ def generar_id_unico(prefix):
 def generar_timestamp():
     return datetime.utcnow().isoformat()
 
-import math
-
 def generar_ubicacion():
     # Centro aproximado de Valencia
     centro_latitud = 39.4699
     centro_longitud = -0.3763
 
-    # Radio máximo en grados (aprox. 10 km alrededor del centro de Valencia)
+    # Radio máximo en grados (aprox. 10 km)
     radio_km = 3
     radio_grados = radio_km / 111  # Aproximación: 1 grado ≈ 111 km
 
     # Generar un ángulo y un radio aleatorio dentro del círculo
     angulo = random.uniform(0, 2 * math.pi)
-    radio = random.uniform(0, radio_grados)  # Distribución uniforme dentro del círculo
-
+    radio = random.uniform(0, radio_grados) 
     # Convertir coordenadas polares a coordenadas geográficas
     latitud = centro_latitud + (radio * math.cos(angulo))
     longitud = centro_longitud + (radio * math.sin(angulo)) / math.cos(math.radians(centro_latitud))  # Ajuste por la curvatura de la Tierra
