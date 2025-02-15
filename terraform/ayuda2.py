@@ -2,6 +2,7 @@ import apache_beam as beam
 import json
 from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.io.gcp.bigquery import BigQueryDisposition
+import datetime
 
 def parse_tfvars(file_path):
     variables = {}
@@ -46,7 +47,7 @@ bq_schema_matches = {
         {"name": "Solicitud_Timestamp", "type": "STRING", "mode": "NULLABLE"},
         {"name": "Solicitud_Lat", "type": "FLOAT", "mode": "NULLABLE"},
         {"name": "Solicitud_Lng", "type": "FLOAT", "mode": "NULLABLE"},
-
+        {"name": "Match_Timestamp", "type": "STRING", "mode": "NULLABLE" },
         {"name": "Voluntario_ID", "type": "STRING", "mode": "NULLABLE"},
         {"name": "Voluntario_Nombre", "type": "STRING", "mode": "NULLABLE"},
         {"name": "Voluntario_Edad", "type": "INTEGER", "mode": "NULLABLE"},
@@ -99,7 +100,7 @@ def DecodificarMensaje(msg):
 def flatten_match_data(element):
     solicitud = element["Solicitud"]
     voluntario = element["Voluntario"]
-
+    match_timestamp = element.get("Match_Timestamp")
     return {
         "Solicitud_ID": solicitud["ID"],
         "Solicitud_Nombre": solicitud["Nombre"],
@@ -120,6 +121,8 @@ def flatten_match_data(element):
         "Voluntario_Timestamp": voluntario["Timestamp"],
         "Voluntario_Lat": voluntario["Ubicacion"]["latitud"],
         "Voluntario_Lng": voluntario["Ubicacion"]["longitud"],
+
+         "Match_Timestamp": match_timestamp
     }
 
 def flatten_no_match_solicitud(solicitud):
@@ -171,9 +174,11 @@ class FiltrarMatchingPorUrgencia(beam.DoFn):
             ]
             if voluntarios_compatibles:
                 voluntario_asignado = voluntarios_compatibles[0]
+                timestamp_match = datetime.datetime.utcnow().isoformat()
                 yield beam.pvalue.TaggedOutput("matches", {
                     "Solicitud": solicitud,
-                    "Voluntario": voluntario_asignado
+                    "Voluntario": voluntario_asignado,
+                    "Match_Timestamp": timestamp_match 
                 })
                 voluntarios_disponibles.remove(voluntario_asignado)
             else:
@@ -190,7 +195,7 @@ def run():
         runner='DataflowRunner',
         project=project_id,
         job_name='pubsub-matching-job',
-        region='europe-west2',
+        region='europe-west4',
         temp_location='gs://data-project-2/temp',
         staging_location='gs://data-project-2/staging'
     )
