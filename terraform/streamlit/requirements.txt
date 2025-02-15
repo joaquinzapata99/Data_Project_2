@@ -4,3 +4,4 @@ google-cloud-pubsub
 pandas
 pydeck
 streamlit-autorefresh
+db-dtypes
