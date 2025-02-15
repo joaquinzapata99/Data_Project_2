@@ -1,5 +1,3 @@
-# main.py
-import os
 import streamlit as st
 from google.cloud import bigquery, pubsub_v1
 import pandas as pd
@@ -8,85 +6,62 @@ import random
 import math
 import datetime
 import json
+import time
 from streamlit_autorefresh import st_autorefresh
 
-# Page config
+# Configurar credenciales de BigQuery
 st.set_page_config(page_title="BigQuery Streamlit Dashboard", layout="wide")
+
 st.title("BigQuery Plataforma de Voluntariado y Ayuda")
 
-
-MAPBOX_TOKEN = os.getenv('MAPBOX_TOKEN')
-
-# Initialize BigQuery client
+# Inicializar cliente de BigQuery
 client = bigquery.Client()
 
-# Configure Pub/Sub
-PROJECT_ID = os.getenv('PROJECT_ID')
-TOPIC_VOLUNTARIOS = os.getenv('TOPIC_VOLUNTARIOS', 'voluntarios-streamlit')
-TOPIC_AFECTADOS = os.getenv('TOPIC_AFECTADOS', 'ayuda-streamlit')
+# Configurar Pub/Sub
+PROJECT_ID = "data-project-2-449815"
+TOPIC_VOLUNTARIOS = "voluntarios-streamlit"
+TOPIC_AFECTADOS = "ayuda-streamlit"
 
 publisher = pubsub_v1.PublisherClient()
-
-# Predefined options
-necesidades = ["Comida y Agua", "Medicinas", "Maquinaria Pesada", "Refugio Temporal", "Ropa", "Ayuda a animales"]
-voluntario_disponibilidad = ["Inmediata", "Un café y voy", "Puede tardar"]
-urgencias = ["Baja", "Media", "Alta"]
-
-# Fixed colors for matches
-colores = {
-    0: [255, 0, 0, 255],  # Red
-    1: [0, 0, 255, 255],  # Blue
-    2: [0, 128, 0, 255]   # Dark green
-}
 
 def generar_id_unico(prefix):
     return f"{prefix}{random.randint(1000, 100000)}"
 
 def enviar_a_pubsub(topic, datos):
-    try:
-        topic_path = publisher.topic_path(PROJECT_ID, topic)
-        mensaje_json = json.dumps(datos).encode("utf-8")
-        future = publisher.publish(topic_path, mensaje_json)
-        future.result()
-    except Exception as e:
-        st.error(f"Error al enviar datos: {str(e)}")
-        return False
-    return True
+    """Envía un mensaje a Pub/Sub con los datos del formulario."""
+    topic_path = publisher.topic_path(PROJECT_ID, topic)
+    mensaje_json = json.dumps(datos).encode("utf-8")
+    future = publisher.publish(topic_path, mensaje_json)
+    future.result()
 
-def generar_ubicacion():
-    """Generate random location within 3km radius in Valencia."""
-    centro_latitud = 39.4699
-    centro_longitud = -0.3763
-    radio_km = 3
-    radio_grados = radio_km / 111
-    angulo = random.uniform(0, 2 * math.pi)
-    radio = random.uniform(0, radio_grados)
-    latitud = centro_latitud + (radio * math.cos(angulo))
-    longitud = centro_longitud + (radio * math.sin(angulo)) / math.cos(math.radians(centro_latitud))
-    return {"latitud": round(latitud, 6), "longitud": round(longitud, 6)}
+# Definir las pestañas de la aplicación
+menu = ["Encuesta Voluntarios", "Encuesta Afectados", "Mapa de Solicitudes y Voluntarios", "Consulta por tu ID", "Ver Todos los Matches"]
+choice = st.sidebar.selectbox("Selecciona una opción", menu)
+
+# Opciones predefinidas
+necesidades = ["Comida y Agua", "Medicinas", "Maquinaria Pesada", "Refugio Temporal", "Ropa", "Ayuda a animales"] 
+voluntario_disponibilidad = ["Inmediata", "Un café y voy", "Puede tardar"]
+urgencias = ["Baja", "Media", "Alta"]
+
+# Colores fijos para los matches
+colores = {
+    0: [255, 0, 0, 255],  # Rojo
+    1: [0, 0, 255, 255],  # Azul
+    2: [0, 128, 0, 255]   # Verde oscuro
+}
+
+def generar_id_unico(prefix):
+    return f"{prefix}{random.randint(1000, 100000)}"
 
 def buscar_id_en_bigquery(id_usuario):
-    """Search for ID in BigQuery tables."""
     consultas = {
-        "Matches": """
-            SELECT * 
-            FROM `{}.dataflow_matches.match` 
-            WHERE Solicitud_ID = @id OR Voluntario_ID = @id
-        """.format(PROJECT_ID),
-        "Voluntarios sin Match": """
-            SELECT * 
-            FROM `{}.dataflow_matches.no_match_voluntarios` 
-            WHERE Voluntario_ID = @id
-        """.format(PROJECT_ID),
-        "Solicitudes sin Match": """
-            SELECT * 
-            FROM `{}.dataflow_matches.no_matches_solicitudes` 
-            WHERE Solicitud_ID = @id
-        """.format(PROJECT_ID),
+        "Matches": "SELECT * FROM `data-project-2-449815.dataflow_matches.match` WHERE Solicitud_ID = @id OR Voluntario_ID = @id",
+        "Voluntarios sin Match": "SELECT * FROM `data-project-2-449815.dataflow_matches.no_match_voluntarios` WHERE Voluntario_ID = @id",
+        "Solicitudes sin Match": "SELECT * FROM `data-project-2-449815.dataflow_matches.no_matches_solicitudes` WHERE Solicitud_ID = @id",
     }
 
     resultados = {}
-    encontrado = False
+    encontrado = False  # Variable para rastrear si encontramos el ID
 
     for nombre_tabla, query in consultas.items():
         job_config = bigquery.QueryJobConfig(
@@ -96,7 +71,7 @@ def buscar_id_en_bigquery(id_usuario):
         df = query_job.to_dataframe()
 
         if not df.empty:
-            encontrado = True
+            encontrado = True  # Se encontró el ID en alguna tabla
 
         resultados[nombre_tabla] = df
 
@@ -105,12 +80,19 @@ def buscar_id_en_bigquery(id_usuario):
 
     return resultados
 
-# Define application tabs
-menu = ["Encuesta Voluntarios", "Encuesta Afectados", "Mapa de Solicitudes y Voluntarios", 
-        "Consulta por tu ID", "Ver Todos los Matches"]
-choice = st.sidebar.selectbox("Selecciona una opción", menu)
+def generar_ubicacion():
+    """Genera una ubicación aleatoria dentro de un radio de 3 km en Valencia."""
+    centro_latitud = 39.4699
+    centro_longitud = -0.3763
+    radio_km = 3
+    radio_grados = radio_km / 111  # Aproximación: 1 grado ≈ 111 km
+    angulo = random.uniform(0, 2 * math.pi)
+    radio = random.uniform(0, radio_grados)
+    latitud = centro_latitud + (radio * math.cos(angulo))
+    longitud = centro_longitud + (radio * math.sin(angulo)) / math.cos(math.radians(centro_latitud))
+    return {"latitud": round(latitud, 6), "longitud": round(longitud, 6)}
 
-# Application logic
+# -------------------------- Aplicación Principal --------------------------
 if choice == "Encuesta Voluntarios":
     st.subheader("Formulario para Voluntarios")
     nombre = st.text_input("Nombre Completo")
@@ -156,79 +138,83 @@ elif choice == "Encuesta Afectados":
         st.success(f"Tu solicitud con ID {datos['ID']} ha sido enviada correctamente.")
 
 elif choice == "Mapa de Solicitudes y Voluntarios":
+    # Agregar un temporizador que recarga la página cada 5 segundos
     st_autorefresh(interval=5000, key="mapa_recarga")
+
     st.subheader("Últimos 3 Matches")
 
-    QUERY_RECENT = f"""
+    QUERY_RECENT = """
         SELECT Solicitud_ID, Voluntario_ID, Voluntario_Necesidad, 
                Solicitud_Lat, Solicitud_Lng, Voluntario_Lat, Voluntario_Lng 
-        FROM `{PROJECT_ID}.dataflow_matches.match`
+        FROM `data-project-2-449815.dataflow_matches.match`
         ORDER BY Solicitud_Timestamp DESC
         LIMIT 3
     """
 
     try:
         data_recent = client.query(QUERY_RECENT).to_dataframe()
-        
-        if not data_recent.empty:
-            st.subheader("Detalles de los Últimos 3 Matches")
-
-            with st.container():
-                for i, row in data_recent.iterrows():
-                    color = colores.get(i, [128, 128, 128, 255])
-                    color_hex = f"rgb({color[0]}, {color[1]}, {color[2]})"
-                    st.markdown(f"""
-                        <div style='padding: 10px; border-radius: 10px; background-color: {color_hex}; 
-                             color: white; margin-bottom: 10px; border: 1px solid #ddd;'>
-                            ✅ <strong>Se ha producido un match:</strong> 
-                            La solicitud con ID <strong>{row['Solicitud_ID']}</strong> 
-                            ha encontrado un voluntario con ID <strong>{row['Voluntario_ID']}</strong> 
-                            para la necesidad de <strong>{row['Voluntario_Necesidad']}</strong>.
-                        </div>
-                    """, unsafe_allow_html=True)
-
-            data_recent["color"] = data_recent.index.map(lambda i: colores.get(i, [128, 128, 128, 255]))
-
-            st.pydeck_chart(pdk.Deck(
-                map_style='mapbox://styles/mapbox/streets-v11',
-                initial_view_state=pdk.ViewState(
-                    latitude=data_recent[["Solicitud_Lat", "Voluntario_Lat"]].mean().mean(),
-                    longitude=data_recent[["Solicitud_Lng", "Voluntario_Lng"]].mean().mean(),
-                    zoom=12,
-                    pitch=0,
-                ),
-                layers=[
-                    pdk.Layer(
-                        "ScatterplotLayer",
-                        data_recent,
-                        get_position=["Solicitud_Lng", "Solicitud_Lat"],
-                        get_radius=100,
-                        get_color="color",
-                        pickable=True,
-                    ),
-                    pdk.Layer(
-                        "ScatterplotLayer",
-                        data_recent,
-                        get_position=["Voluntario_Lng", "Voluntario_Lat"],
-                        get_radius=100,
-                        get_color="color",
-                        pickable=True,
-                    )
-                ]
-            ))
-        else:
-            st.warning("No se encontraron datos para visualizar.")
     except Exception as e:
         st.error(f"Error al obtener datos de BigQuery: {e}")
+        data_recent = pd.DataFrame()
+
+    # Mostrar detalles de los matches
+    if not data_recent.empty:
+        st.subheader("Detalles de los Últimos 3 Matches")
+
+        with st.container():
+            for i, row in data_recent.iterrows():
+                color = colores.get(i, [128, 128, 128, 255])  # Gris por defecto si no hay color asignado
+                color_hex = f"rgb({color[0]}, {color[1]}, {color[2]})"
+                st.markdown(f"""
+                    <div style='padding: 10px; border-radius: 10px; background-color: {color_hex}; color: white; margin-bottom: 10px; border: 1px solid #ddd;'>
+                        ✅ <strong>Se ha producido un match:</strong> La solicitud con ID <strong>{row['Solicitud_ID']}</strong> ha encontrado un voluntario con ID <strong>{row['Voluntario_ID']}</strong> para la necesidad de <strong>{row['Voluntario_Necesidad']}</strong>.
+                    </div>
+                """, unsafe_allow_html=True)
+
+    # Mostrar el mapa
+    if not data_recent.empty:
+        data_recent["color"] = data_recent.index.map(lambda i: colores.get(i, [128, 128, 128, 255]))
+
+        st.pydeck_chart(pdk.Deck(
+            map_style='mapbox://styles/mapbox/streets-v11',
+            initial_view_state=pdk.ViewState(
+                latitude=data_recent[["Solicitud_Lat", "Voluntario_Lat"]].mean().mean(),
+                longitude=data_recent[["Solicitud_Lng", "Voluntario_Lng"]].mean().mean(),
+                zoom=12,
+                pitch=0,
+            ),
+            layers=[
+                pdk.Layer(
+                    "ScatterplotLayer",
+                    data_recent,
+                    get_position=["Solicitud_Lng", "Solicitud_Lat"],
+                    get_radius=100,
+                    get_color="color",
+                    pickable=True,
+                ),
+                pdk.Layer(
+                    "ScatterplotLayer",
+                    data_recent,
+                    get_position=["Voluntario_Lng", "Voluntario_Lat"],
+                    get_radius=100,
+                    get_color="color",
+                    pickable=True,
+                )
+            ]
+        ))
+    else:
+        st.warning("No se encontraron datos para visualizar.")
 
 elif choice == "Consulta por tu ID":
     st.title("Consultar ID en BigQuery")
+
     id_usuario = st.text_input("Ingrese su ID:", "")
 
     if st.button("Buscar ID"):
         if id_usuario:
             resultados = buscar_id_en_bigquery(id_usuario)
-            if isinstance(resultados, str):
+
+            if isinstance(resultados, str):  # Si la función devuelve un mensaje en lugar de un diccionario
                 st.warning(resultados)
             else:
                 for nombre_tabla, df in resultados.items():
@@ -242,13 +228,17 @@ elif choice == "Consulta por tu ID":
 
 elif choice == "Ver Todos los Matches":
     st.title("Actividad de Matches en Vivo")
+    
+    # Configurar auto-refresh más frecuente para mostrar datos en vivo
     refresh_interval = st.sidebar.slider("Intervalo de actualización (segundos)", 1, 30, 3)
     st_autorefresh(interval=refresh_interval * 1000, key="live_matches_recarga")
     
+    # Contador para mantener el número de matches vistos
     if 'last_seen_matches' not in st.session_state:
         st.session_state.last_seen_matches = 0
     
-    QUERY_ALL_MATCHES = f"""
+    # Consulta para obtener los matches más recientes
+    QUERY_ALL_MATCHES = """
         SELECT 
             Solicitud_ID, 
             Voluntario_ID, 
@@ -258,21 +248,22 @@ elif choice == "Ver Todos los Matches":
             Solicitud_Lng, 
             Voluntario_Lat, 
             Voluntario_Lng
-        FROM `{PROJECT_ID}.dataflow_matches.match`
+        FROM `data-project-2-449815.dataflow_matches.match`
         ORDER BY Solicitud_Timestamp DESC
         LIMIT 50
     """
     
     try:
+        # Ejecutar la consulta
         data_all_matches = client.query(QUERY_ALL_MATCHES).to_dataframe()
         
         if not data_all_matches.empty:
+            # Formatear timestamp
             data_all_matches['Solicitud_Timestamp'] = pd.to_datetime(data_all_matches['Solicitud_Timestamp'])
             data_all_matches['Fecha_Hora'] = data_all_matches['Solicitud_Timestamp'].dt.strftime('%d/%m/%Y %H:%M:%S')
-            data_all_matches['Tiempo_Relativo'] = (datetime.datetime.utcnow() - 
-                data_all_matches['Solicitud_Timestamp']).apply(
-                    lambda x: f"{x.seconds // 60} min" if x.days == 0 else f"{x.days} días")
+            data_all_matches['Tiempo_Relativo'] = (datetime.datetime.utcnow() - data_all_matches['Solicitud_Timestamp']).apply(lambda x: f"{x.seconds // 60} min" if x.days == 0 else f"{x.days} días")
             
+            # Calcular nuevos matches
             total_matches = len(data_all_matches)
             nuevos_matches = total_matches - st.session_state.last_seen_matches
             
@@ -283,18 +274,21 @@ elif choice == "Ver Todos los Matches":
                 if nuevos_matches > 0:
                     st.metric("Nuevos matches", nuevos_matches, f"+{nuevos_matches}")
             
+            # Actualizar contador
             st.session_state.last_seen_matches = total_matches
-            
+                
+            # Mostrar actividad reciente
             st.subheader("Actividad de Matches en Tiempo Real")
             
+            # Mostrar los matches más recientes primero
             for i, row in data_all_matches.head(15).iterrows():
+                # Determinar si es un match nuevo (menos de 1 minuto)
                 es_nuevo = (datetime.datetime.utcnow() - row['Solicitud_Timestamp']).total_seconds() < 60
                 
                 with st.container():
                     if es_nuevo:
                         st.markdown(f"""
-                            <div style='padding: 15px; border-radius: 10px; background-color: #28a745; 
-                                 color: white; margin-bottom: 10px; border: 1px solid #ddd;'>
+                            <div style='padding: 15px; border-radius: 10px; background-color: #28a745; color: white; margin-bottom: 10px; border: 1px solid #ddd;'>
                                 <h3>¡NUEVO MATCH! 🎉</h3>
                                 <p><strong>Hace:</strong> {row['Tiempo_Relativo']}</p>
                                 <p><strong>Solicitud ID:</strong> {row['Solicitud_ID']}</p>
@@ -304,32 +298,31 @@ elif choice == "Ver Todos los Matches":
                         """, unsafe_allow_html=True)
                     else:
                         st.markdown(f"""
-                            <div style='padding: 15px; border-radius: 10px; background-color: #f8f9fa; 
-                                 margin-bottom: 10px; border: 1px solid #ddd;'>
+                            <div style='padding: 15px; border-radius: 10px; background-color: #f8f9fa; margin-bottom: 10px; border: 1px solid #ddd;'>
                                 <p><strong>Match hace:</strong> {row['Tiempo_Relativo']}</p>
-                                <p><strong>Solicitud ID:</strong> {row['Solicitud_ID']} - 
-                                   <strong>Voluntario ID:</strong> {row['Voluntario_ID']}</p>
+                                <p><strong>Solicitud ID:</strong> {row['Solicitud_ID']} - <strong>Voluntario ID:</strong> {row['Voluntario_ID']}</p>
                                 <p><strong>Tipo de Ayuda:</strong> {row['Voluntario_Necesidad']}</p>
                             </div>
                         """, unsafe_allow_html=True)
             
+            # Visualización de actividad por horas recientes
             st.subheader("Actividad de las Últimas 24 Horas")
             
-            last_24h = data_all_matches[data_all_matches['Solicitud_Timestamp'] > 
-                                                (datetime.datetime.utcnow() - datetime.timedelta(hours=24))]
+            # Filtrar para las últimas 24 horas
+            last_24h = data_all_matches[data_all_matches['Solicitud_Timestamp'] > (datetime.datetime.utcnow() - datetime.timedelta(hours=24))]
             
             if not last_24h.empty:
+                # Agrupar por hora
                 last_24h['Hora'] = last_24h['Solicitud_Timestamp'].dt.floor('H')
                 matches_por_hora = last_24h.groupby('Hora').size().reset_index(name='Cantidad')
                 matches_por_hora = matches_por_hora.set_index('Hora')
                 
-                idx = pd.date_range(
-                    end=datetime.datetime.utcnow().replace(minute=0, second=0, microsecond=0),
-                    periods=24, 
-                    freq='H'
-                )
+                # Rellenar horas faltantes
+                idx = pd.date_range(end=datetime.datetime.utcnow().replace(minute=0, second=0, microsecond=0),
+                                   periods=24, freq='H')
                 matches_por_hora = matches_por_hora.reindex(idx, fill_value=0)
                 
+                # Crear gráfico
                 st.line_chart(matches_por_hora['Cantidad'])
             else:
                 st.info("No hay datos de matches en las últimas 24 horas.")
@@ -340,10 +333,3 @@ elif choice == "Ver Todos los Matches":
     except Exception as e:
         st.error(f"Error al obtener datos de BigQuery: {e}")
         st.exception(e)
-
-if __name__ == "__main__":
-    # Check for required environment variables
-    required_env_vars = ['PROJECT_ID']
-    missing_vars = [var for var in required_env_vars if not os.getenv(var)]
-    if missing_vars:
-        raise EnvironmentError(f"Missing required environment variables: {', '.join(missing_vars)}")
