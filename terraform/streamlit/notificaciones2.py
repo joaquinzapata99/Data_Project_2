@@ -19,8 +19,8 @@ client = bigquery.Client()
 
 # Configurar Pub/Sub
 PROJECT_ID = "data-project-2-449815"
-TOPIC_VOLUNTARIOS = "voluntarios-streamlit"
-TOPIC_AFECTADOS = "ayuda-streamlit"
+TOPIC_VOLUNTARIOS = "voluntarios"
+TOPIC_AFECTADOS = "ayuda"
 
 publisher = pubsub_v1.PublisherClient()
 
