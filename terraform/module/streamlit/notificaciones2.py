@@ -8,6 +8,7 @@ import datetime
 import json
 import time
 from streamlit_autorefresh import st_autorefresh
+import os
 
 # Configurar credenciales de BigQuery
 st.set_page_config(page_title="BigQuery Streamlit Dashboard", layout="wide")
@@ -17,11 +18,10 @@ st.title("BigQuery Plataforma de Voluntariado y Ayuda")
 # Inicializar cliente de BigQuery
 client = bigquery.Client()
 
-# Configurar Pub/Sub
-PROJECT_ID = "data-project-2-449815"
-TOPIC_VOLUNTARIOS = "voluntarios-streamlit"
-TOPIC_AFECTADOS = "ayuda-streamlit"
-
+# Se leen las variables de entorno
+PROJECT_ID = os.getenv("PROJECT_ID", "data-project-2-449815")
+TOPIC_VOLUNTARIOS = os.getenv("TOPIC_VOLUNTARIOS", "voluntarios-streamlit")
+TOPIC_AFECTADOS = os.getenv("TOPIC_AFECTADOS", "ayuda-streamlit")
 publisher = pubsub_v1.PublisherClient()
 
 def obtener_info_contacto(match_id):
