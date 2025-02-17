@@ -19,7 +19,7 @@ resource "google_cloud_run_service" "streamlit_service" {
           container_port = 8501
         }
       }
-     service_account = (var.service_account_email != "") ? var.service_account_email : null
+     #service_account = (var.service_account_email != "") ? var.service_account_email : null
 
     }
   }
