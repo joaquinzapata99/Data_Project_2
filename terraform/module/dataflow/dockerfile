@@ -1,0 +1,15 @@
+# Usa la imagen base oficial de Apache Beam para Python.
+FROM apache/beam_python3.8_sdk:2.49.0
+
+# Establece el directorio de trabajo en el contenedor.
+WORKDIR /app
+
+# Copia únicamente el archivo de requerimientos e instala las dependencias.
+COPY requirements.txt .
+RUN pip install --upgrade pip && pip install -r requirements.txt
+
+# Copia el script del pipeline.
+COPY dataflow.py .
+
+# Define el comando por defecto para ejecutar el pipeline.
+CMD ["python", "dataflow.py"]

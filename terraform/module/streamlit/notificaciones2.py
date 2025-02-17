@@ -8,6 +8,7 @@ import datetime
 import json
 import time
 from streamlit_autorefresh import st_autorefresh
+import os
 
 # Configurar credenciales de BigQuery
 st.set_page_config(page_title="BigQuery Streamlit Dashboard", layout="wide")
@@ -21,8 +22,6 @@ client = bigquery.Client()
 PROJECT_ID = "data-project-2-449815"
 TOPIC_VOLUNTARIOS = "voluntarios"
 TOPIC_AFECTADOS = "ayuda"
-
-publisher = pubsub_v1.PublisherClient()
 
 def obtener_info_contacto(match_id):
     """Obtiene la información de contacto para un match específico."""

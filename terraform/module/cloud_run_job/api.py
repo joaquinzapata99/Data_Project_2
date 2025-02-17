@@ -7,12 +7,13 @@ from faker import Faker
 from datetime import datetime
 from google.cloud import pubsub_v1
 import unidecode
+import os
 import math
-
 # Configuración de Pub/Sub
-PROJECT_ID = "data-project-2-449815"
-TOPIC_REQUESTS = "ayuda"
-TOPIC_HELPERS = "voluntarios"
+PROJECT_ID = os.getenv("PROJECT_ID", "default-project")
+TOPIC_REQUESTS = os.getenv("TOPIC_REQUESTS", "ayuda")
+TOPIC_HELPERS = os.getenv("TOPIC_HELPERS", "voluntarios")
+
 
 publisher = pubsub_v1.PublisherClient()
 topic_requests_path = publisher.topic_path(PROJECT_ID, TOPIC_REQUESTS)
