@@ -1,32 +1,22 @@
+import os
 import apache_beam as beam
 import json
 from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.io.gcp.bigquery import BigQueryDisposition
 import datetime
 
-def parse_tfvars(file_path):
-    variables = {}
-    with open(file_path, "r") as f:
-        for line in f:
-            line = line.strip()
-            if line and not line.startswith("#"):  # Ignorar comentarios y líneas vacías
-                key, value = line.split("=", 1)
-                key = key.strip()
-                value = value.strip().strip('"')  # Eliminar comillas
-                variables[key] = value
-    return variables
+# Se leen las variables de entorno (estas deben estar definidas en Terraform)
+project_id = os.getenv("project_id", "data-project-2-449815")
+dataset_id = os.getenv("bq_dataset", "dataflow_matches")
 
-# Leer variables desde terraform.tfvars
-tf_vars = parse_tfvars("terraform.tfvars")
-project_id = tf_vars.get("project_id")
-dataset_id = "dataflow_matches"
+# Definición de las tablas en BigQuery (puedes parametrizarlas también si lo deseas)
+table_id_matches = os.getenv("table_id_matches", "match")
+table_id_no_matches_solicitudes = os.getenv("table_id_no_matches_solicitudes", "no_matches_solicitudes")
+table_id_no_matches_voluntarios = os.getenv("table_id_no_matches_voluntarios", "no_match_voluntarios")
 
-table_id_matches = "match"
-table_id_no_matches_solicitudes = "no_matches_solicitudes"
-table_id_no_matches_voluntarios = "no_match_voluntarios"
-
-subscription_ayuda = "ayuda-sub"
-subscription_voluntarios = "voluntarios-sub"
+# Suscripciones de Pub/Sub (se pueden parametrizar a través del tfvars)
+subscription_ayuda = os.getenv("sub_requests", "ayuda-sub")
+subscription_voluntarios = os.getenv("sub_helpers", "voluntarios-sub")
 
 # Tabla de correspondencia entre Nivel de Urgencia (Petición) y Nivel de Urgencias (Voluntario)
 matching_criterios = {
@@ -122,7 +112,7 @@ def flatten_match_data(element):
         "Voluntario_Lat": voluntario["Ubicacion"]["latitud"],
         "Voluntario_Lng": voluntario["Ubicacion"]["longitud"],
 
-         "Match_Timestamp": match_timestamp
+        "Match_Timestamp": match_timestamp
     }
 
 def flatten_no_match_solicitud(solicitud):
@@ -195,7 +185,7 @@ def run():
         runner='DataflowRunner',
         project=project_id,
         job_name='pubsub-matching-job',
-        region='europe-west4',
+        region=os.getenv("region", "europe-west1"),
         temp_location='gs://data-project-2/temp',
         staging_location='gs://data-project-2/staging'
     )
@@ -229,8 +219,7 @@ def run():
         resultado = (
             grouped_data
             | "Filtrar Matching"
-            >> beam.ParDo(FiltrarMatchingPorUrgencia())
-               .with_outputs("matches", "no_matches_solicitudes", "no_matches_voluntarios")
+              >> beam.ParDo(FiltrarMatchingPorUrgencia()).with_outputs("matches", "no_matches_solicitudes", "no_matches_voluntarios")
         )
 
         matches = resultado["matches"]
