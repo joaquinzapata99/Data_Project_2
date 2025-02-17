@@ -6,26 +6,26 @@ resource "google_artifact_registry_repository" "repo" {
   format        = "DOCKER"
 }
 
-# # Autenticación con Artifact Registry
-# resource "null_resource" "docker_auth" {
-#   provisioner "local-exec" {
-#     command = "gcloud auth configure-docker ${var.region}-docker.pkg.dev"
-#   }
+# Autenticación con Artifact Registry
+resource "null_resource" "docker_auth" {
+  provisioner "local-exec" {
+    command = "gcloud auth configure-docker ${var.region}-docker.pkg.dev"
+  }
 
-#   depends_on = [google_artifact_registry_repository.repo]
-# }
+  depends_on = [google_artifact_registry_repository.repo]
+}
 
-# # Construcción de la imagen con Docker y push a Artifact Registry
-# resource "null_resource" "build_push_image" {
-#   provisioner "local-exec" {
-#     command = <<EOT
-#       docker build --platform=linux/amd64 -t ${var.region}-docker.pkg.dev/${var.project_id}/${var.repository_name}/${var.image_name}:latest ${path.module}
-#       docker push   ${var.region}-docker.pkg.dev/${var.project_id}/${var.repository_name}/${var.image_name}:latest
-#     EOT
-#   }
+# Construcción de la imagen con Docker y push a Artifact Registry
+resource "null_resource" "build_push_image" {
+  provisioner "local-exec" {
+    command = <<EOT
+      docker build --platform=linux/amd64 -t ${var.region}-docker.pkg.dev/${var.project_id}/${var.repository_name}/${var.image_name}:latest ${path.module}
+      docker push   ${var.region}-docker.pkg.dev/${var.project_id}/${var.repository_name}/${var.image_name}:latest
+    EOT
+  }
 
-#   depends_on = [null_resource.docker_auth]
-# }
+  depends_on = [null_resource.docker_auth]
+}
 
 resource "google_cloud_run_v2_job" "job" {
   name     = var.cloud_run_job_name

@@ -9,20 +9,27 @@ import json
 import time
 from streamlit_autorefresh import st_autorefresh
 import os
+from PIL import Image
 
 # Configurar credenciales de BigQuery
 st.set_page_config(page_title="BigQuery Streamlit Dashboard", layout="wide")
 
-st.title("BigQuery Plataforma de Voluntariado y Ayuda")
+st.title("Petición de ayuda y voluntariado")
 
 # Inicializar cliente de BigQuery
 client = bigquery.Client()
 
+logo = Image.open ("logotipo.png")
 # Se leen las variables de entorno
 PROJECT_ID = os.getenv("PROJECT_ID", "data-project-2-449815")
 TOPIC_VOLUNTARIOS = os.getenv("TOPIC_VOLUNTARIOS", "voluntarios-streamlit")
 TOPIC_AFECTADOS = os.getenv("TOPIC_AFECTADOS", "ayuda-streamlit")
 publisher = pubsub_v1.PublisherClient()
+
+with st.sidebar:
+
+    st.image (logo)
+
 
 def obtener_info_contacto(match_id):
     """Obtiene la información de contacto para un match específico."""
@@ -72,7 +79,7 @@ def enviar_a_pubsub(topic, datos):
 # Definir las pestañas de la aplicación
 menu = ["Encuesta Voluntarios", "Encuesta Afectados", "Mapa de Solicitudes y Voluntarios", 
         "Consulta por tu ID", "Ver Todos los Matches", "Ver Información de Contacto"]
-choice = st.sidebar.selectbox("Selecciona una opción", menu)
+choice = st.sidebar.selectbox("Selecciona su opción", menu)
 
 # Opciones predefinidas
 necesidades = ["Comida y Agua", "Medicinas", "Maquinaria Pesada", "Refugio Temporal", "Ropa", "Ayuda a animales"] 
