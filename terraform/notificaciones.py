@@ -8,6 +8,8 @@ import datetime
 import json
 import time
 from streamlit_autorefresh import st_autorefresh
+import os
+from PIL import Image
 
 # Configurar credenciales de BigQuery
 st.set_page_config(page_title="BigQuery Streamlit Dashboard", layout="wide")
