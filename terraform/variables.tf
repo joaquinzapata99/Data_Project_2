@@ -1,80 +1,88 @@
 variable "project_id" {
-  description = "The GCP project ID"
-  type        = string
-}
-variable "region" {
-  description = "The GCP region"
-  type        = string
-}
-variable "zone" {
-  description = "The GCP zone"
-  type        = string
-}
-variable "repository_name" {
-  description = "Nombre del repositorio en Artifact Registry"
+  description = "ID del proyecto de GCP."
   type        = string
 }
 
+variable "zone" {
+  description = "Zona del proyecto"
+  type        = string
+}
 variable "topic_requests" {
-  description = "Topico de los necesitados"
-  type    = string
+  description = "Nombre del tópico de requests."
+  type        = string
+}
+
+variable "sub_requests" {
+  description = "Nombre de la suscripción de requests."
+  type        = string
 }
 
 variable "topic_helpers" {
-  description = "Topico de los voluntarios"
-  type    = string
+  description = "Nombre del tópico de helpers."
+  type        = string
 }
-variable "sub_requests" {
-  description = "Subscripcion de los necesitados"
-  type    = string
-}
+
 variable "sub_helpers" {
-  description = "Subscripcion de los voluntarios"
-  type    = string
+  description = "Nombre de la suscripción de helpers."
+  type        = string
 }
+
 variable "bq_dataset" {
-  description = "Dataset en bigquery"
-  type    = string
-}
-variable "cloud_run_job_name" {
+  description = "Nombre del dataset de BigQuery."
   type        = string
-  description = "Nombre del Cloud Run Job"
 }
-variable "container_image" {
+
+variable "region" {
+  description = "Región de GCP donde se desplegarán los recursos."
   type        = string
-  description = "Imagen de contenedor para el Cloud Run Job"
-  default     = "us-central1-docker.pkg.dev/mi-proyecto/mi-repo/mi-imagen:latest"
 }
-variable "image_name"{
-  description = "Nombre de la imagen"
-  type = string
+
+variable "cloud_run_job_generator" {
+  description = "Nombre del job de Cloud Run para el generador."
+  type        = string
 }
-variable "artifact_registry_dependency" {
-  type        = any
-  description = "Referencia al módulo de Artifact Registry para encadenar dependencias"
-  default     = null
+
+variable "repository_name_generator" {
+  description = "Nombre del repositorio para el generador en Cloud Run."
+  type        = string
 }
+
+variable "image_name_generator" {
+  description = "Nombre de la imagen para el generador en Cloud Run."
+  type        = string
+}
+
 variable "bucket" {
-  description = "Nombre del bucket de GCS para almacenar el template spec"
-  type        = string
-}
-variable "streamlit_service_name" {
-  description = "Nombre del servicio Cloud Run para la aplicación Streamlit"
+  description = "Nombre del bucket para Dataflow."
   type        = string
 }
 
-variable "streamlit_repository_name" {
-  description = "Nombre del repositorio en Artifact Registry para la imagen de Streamlit"
+variable "repository_name_dataflow" {
+  description = "Nombre del repositorio para Dataflow."
   type        = string
 }
 
-variable "streamlit_image_name" {
-  description = "Nombre de la imagen Docker para la aplicación Streamlit"
+variable "image_name_dataflow" {
+  description = "Nombre de la imagen para Dataflow."
   type        = string
 }
 
-variable "streamlit_service_account_email" {
-  description = "Cuenta de servicio para el servicio de Cloud Run (opcional)"
+variable "cloud_run_job_dataflow" {
+  description = "Nombre del job de Dataflow (en este caso, se usa la variable cloud_run_job_dataflow)."
   type        = string
-  default     = ""
+}
+
+variable "match" {
+  description = "Nombre de la tabla de BigQuery para los datos de match."
+  type        = string
+}
+
+variable "no_matches_solicitudes" {
+  description = "Nombre de la tabla de BigQuery para los datos de no match solicitudes."
+  type        = string
+}
+
+variable "no_matches_voluntarios" {
+  description = "Nombre de la tabla de BigQuery para los datos de no match solicitudes."
+  type        = string
 }

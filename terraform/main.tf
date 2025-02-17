@@ -18,28 +18,35 @@ module "bigquery" {
     { name = "no_matches_solicitudes", schema = "schemas/no_matches_solicitudes.json" }
   ]
 }
-module "cloud_run_job" {
-  source             = "./module/cloud_run_job"
+
+module "cloud_run_generator" {
+  source             = "./module/cloud_run_generator"
   project_id         = var.project_id
   region             = var.region
-  cloud_run_job_name = var.cloud_run_job_name
-  repository_name    = var.repository_name
-  image_name         = "data"  
+  cloud_run_job_name = var.cloud_run_job_generator
+  repository_name    = var.repository_name_generator
+  image_name         = var.image_name_generator  
   topic_requests     = var.topic_requests
   topic_helpers      = var.topic_helpers
-  env_vars           = {}  # O puedes pasar un mapa con variables de entorno adicionales si lo necesitas
 }
+
 module "dataflow" {
-  source             = "./module/dataflow"
-  project_id         = var.project_id
-  region             = var.region
-  bucket             = var.bucket            # Debe existir el bucket
-  repository_name    = var.repository_name
-  image_name         = "dataflow"
-  dataflow_job_name  = "dataflow-job"        # O usa una variable
-  input_subscription = var.sub_requests      # Por ejemplo, "ayuda-sub"
-  bq_dataset         = var.bq_dataset
+  source                   = "./module/dataflow"
+  project_id               = var.project_id
+  region                   = var.region
+  bucket                   = var.bucket
+  repository_name_dataflow = var.repository_name_dataflow
+  image_name_dataflow      = var.image_name_dataflow
+  dataflow_job_name        = var.cloud_run_job_dataflow
+  input_subscription       = var.sub_requests
+  bq_dataset               = var.bq_dataset
+  table_match              = var.match
+  table_no_sol             = var.no_matches_solicitudes
+  table_no_vol             = var.no_matches_voluntarios
+  sub_requests             = var.sub_requests
+  sub_helpers              = var.sub_helpers
 }
+
 # module "streamlit" {
 #   source                = "./module/streamlit"
 #   project_id            = var.project_id
