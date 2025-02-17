@@ -8,6 +8,7 @@ import datetime
 import json
 import time
 from streamlit_autorefresh import st_autorefresh
+import os
 
 # Configurar credenciales de BigQuery
 st.set_page_config(page_title="BigQuery Streamlit Dashboard", layout="wide")
@@ -17,12 +18,47 @@ st.title("Resqlink: Plataforma de Voluntariado y Ayuda")
 # Inicializar cliente de BigQuery
 client = bigquery.Client()
 
-# Configurar Pub/Sub
-PROJECT_ID = "data-project-2-449815"
-TOPIC_VOLUNTARIOS = "voluntarios-streamlit"
-TOPIC_AFECTADOS = "ayuda-streamlit"
-
+# Se leen las variables de entorno
+PROJECT_ID = os.getenv("PROJECT_ID", "data-project-2-449815")
+TOPIC_VOLUNTARIOS = os.getenv("TOPIC_VOLUNTARIOS", "voluntarios-streamlit")
+TOPIC_AFECTADOS = os.getenv("TOPIC_AFECTADOS", "ayuda-streamlit")
 publisher = pubsub_v1.PublisherClient()
+
+def obtener_info_contacto(match_id):
+    """Obtiene la información de contacto para un match específico."""
+    QUERY = """
+    SELECT 
+        m.Solicitud_ID,
+        m.Voluntario_ID,
+        s.Solicitud_Nombre as Solicitante_Nombre,
+        s.Solicitud_Telefono as Solicitante_Telefono,
+        v.Voluntario_Nombre as Voluntario_Nombre,
+        v.Voluntario_Telefono as Voluntario_Telefono,
+        m.Voluntario_Necesidad
+    FROM `data-project-2-449815.dataflow_matches.match` m
+    LEFT JOIN `data-project-2-449815.dataflow_matches.match` s
+    ON m.Solicitud_ID = s.Solicitud_ID
+    LEFT JOIN `data-project-2-449815.dataflow_matches.match` v
+    ON m.Voluntario_ID = v.Voluntario_ID
+    WHERE m.Solicitud_ID = @id OR m.Voluntario_ID = @id
+    LIMIT 1
+    """
+    
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("id", "STRING", match_id)
+        ]
+    )
+    
+    try:
+        query_job = client.query(QUERY, job_config=job_config)
+        results = query_job.to_dataframe()
+        if not results.empty:
+            return results.iloc[0]
+        return None
+    except Exception as e:
+        st.error(f"Error al obtener información de contacto: {e}")
+        return None
 
 def generar_id_unico(prefix):
     return f"{prefix}{random.randint(1000, 100000)}"
@@ -35,7 +71,8 @@ def enviar_a_pubsub(topic, datos):
     future.result()
 
 # Definir las pestañas de la aplicación
-menu = ["Encuesta Voluntarios", "Encuesta Afectados", "Mapa de Solicitudes y Voluntarios", "Consulta por tu ID", "Ver Todos los Matches"]
+menu = ["Encuesta Voluntarios", "Encuesta Afectados", "Mapa de Solicitudes y Voluntarios", 
+        "Ver Todos los Matches", "Ver Información de Contacto"]
 choice = st.sidebar.selectbox("Selecciona una opción", menu)
 
 # Opciones predefinidas
@@ -49,36 +86,6 @@ colores = {
     1: [0, 0, 255, 255],  # Azul
     2: [0, 128, 0, 255]   # Verde oscuro
 }
-
-def generar_id_unico(prefix):
-    return f"{prefix}{random.randint(1000, 100000)}"
-
-def buscar_id_en_bigquery(id_usuario):
-    consultas = {
-        "Matches": "SELECT * FROM `data-project-2-449815.dataflow_matches.match` WHERE Solicitud_ID = @id OR Voluntario_ID = @id",
-        "Voluntarios sin Match": "SELECT * FROM `data-project-2-449815.dataflow_matches.no_match_voluntarios` WHERE Voluntario_ID = @id",
-        "Solicitudes sin Match": "SELECT * FROM `data-project-2-449815.dataflow_matches.no_matches_solicitudes` WHERE Solicitud_ID = @id",
-    }
-
-    resultados = {}
-    encontrado = False  # Variable para rastrear si encontramos el ID
-
-    for nombre_tabla, query in consultas.items():
-        job_config = bigquery.QueryJobConfig(
-            query_parameters=[bigquery.ScalarQueryParameter("id", "STRING", id_usuario)]
-        )
-        query_job = client.query(query, job_config=job_config)
-        df = query_job.to_dataframe()
-
-        if not df.empty:
-            encontrado = True  # Se encontró el ID en alguna tabla
-
-        resultados[nombre_tabla] = df
-
-    if not encontrado:
-        return "⚠️ Este ID aún está en proceso. Inténtalo más tarde."
-
-    return resultados
 
 def generar_ubicacion():
     """Genera una ubicación aleatoria dentro de un radio de 3 km en Valencia."""
@@ -205,39 +212,15 @@ elif choice == "Mapa de Solicitudes y Voluntarios":
     else:
         st.warning("No se encontraron datos para visualizar.")
 
-elif choice == "Consulta por tu ID":
-    st.title("Consultar ID")
-
-    id_usuario = st.text_input("Ingrese su ID:", "")
-
-    if st.button("Buscar ID"):
-        if id_usuario:
-            resultados = buscar_id_en_bigquery(id_usuario)
-
-            if isinstance(resultados, str):  # Si la función devuelve un mensaje en lugar de un diccionario
-                st.warning(resultados)
-            else:
-                for nombre_tabla, df in resultados.items():
-                    st.subheader(f"Resultados en {nombre_tabla}")
-                    if df.empty:
-                        st.write("No se encontraron resultados.")
-                    else:
-                        st.dataframe(df)
-        else:
-            st.warning("Por favor, ingrese un ID antes de buscar.")
-
 elif choice == "Ver Todos los Matches":
     st.title("Actividad de Matches en Vivo")
     
-    # Configurar auto-refresh más frecuente para mostrar datos en vivo
     refresh_interval = st.sidebar.slider("Intervalo de actualización (segundos)", 1, 30, 3)
     st_autorefresh(interval=refresh_interval * 1000, key="live_matches_recarga")
     
-    # Contador para mantener el número de matches vistos
     if 'last_seen_matches' not in st.session_state:
         st.session_state.last_seen_matches = 0
     
-    # Consulta para obtener los matches más recientes
     QUERY_ALL_MATCHES = """
         SELECT 
             Solicitud_ID, 
@@ -254,16 +237,13 @@ elif choice == "Ver Todos los Matches":
     """
     
     try:
-        # Ejecutar la consulta
         data_all_matches = client.query(QUERY_ALL_MATCHES).to_dataframe()
         
         if not data_all_matches.empty:
-            # Formatear timestamp
             data_all_matches['Solicitud_Timestamp'] = pd.to_datetime(data_all_matches['Solicitud_Timestamp'])
             data_all_matches['Fecha_Hora'] = data_all_matches['Solicitud_Timestamp'].dt.strftime('%d/%m/%Y %H:%M:%S')
             data_all_matches['Tiempo_Relativo'] = (datetime.datetime.utcnow() - data_all_matches['Solicitud_Timestamp']).apply(lambda x: f"{x.seconds // 60} min" if x.days == 0 else f"{x.days} días")
             
-            # Calcular nuevos matches
             total_matches = len(data_all_matches)
             nuevos_matches = total_matches - st.session_state.last_seen_matches
             
@@ -274,15 +254,11 @@ elif choice == "Ver Todos los Matches":
                 if nuevos_matches > 0:
                     st.metric("Nuevos matches", nuevos_matches, f"+{nuevos_matches}")
             
-            # Actualizar contador
             st.session_state.last_seen_matches = total_matches
                 
-            # Mostrar actividad reciente
             st.subheader("Actividad de Matches en Tiempo Real")
             
-            # Mostrar los matches más recientes primero
             for i, row in data_all_matches.head(15).iterrows():
-                # Determinar si es un match nuevo (menos de 1 minuto)
                 es_nuevo = (datetime.datetime.utcnow() - row['Solicitud_Timestamp']).total_seconds() < 60
                 
                 with st.container():
@@ -305,24 +281,19 @@ elif choice == "Ver Todos los Matches":
                             </div>
                         """, unsafe_allow_html=True)
             
-            # Visualización de actividad por horas recientes
             st.subheader("Actividad de las Últimas 24 Horas")
             
-            # Filtrar para las últimas 24 horas
             last_24h = data_all_matches[data_all_matches['Solicitud_Timestamp'] > (datetime.datetime.utcnow() - datetime.timedelta(hours=24))]
             
             if not last_24h.empty:
-                # Agrupar por hora
                 last_24h['Hora'] = last_24h['Solicitud_Timestamp'].dt.floor('H')
                 matches_por_hora = last_24h.groupby('Hora').size().reset_index(name='Cantidad')
                 matches_por_hora = matches_por_hora.set_index('Hora')
                 
-                # Rellenar horas faltantes
                 idx = pd.date_range(end=datetime.datetime.utcnow().replace(minute=0, second=0, microsecond=0),
                                    periods=24, freq='H')
                 matches_por_hora = matches_por_hora.reindex(idx, fill_value=0)
                 
-                # Crear gráfico
                 st.line_chart(matches_por_hora['Cantidad'])
             else:
                 st.info("No hay datos de matches en las últimas 24 horas.")
@@ -333,3 +304,78 @@ elif choice == "Ver Todos los Matches":
     except Exception as e:
         st.error(f"Error al obtener datos de BigQuery: {e}")
         st.exception(e)
+
+elif choice == "Ver Información de Contacto":
+    st.title("Información de Contacto de Match")
+    
+    match_id = st.text_input("Ingrese su ID de Voluntario o Solicitud:", "")
+    
+    if st.button("Buscar Información de Contacto"):
+        if match_id:
+            info = obtener_info_contacto(match_id)
+            if info is not None:
+                st.markdown("""
+                    <style>
+                    .contact-info {
+                        padding: 20px;
+                        border-radius: 10px;
+                        background-color: #f8f9fa;
+                        margin: 10px 0;
+                        border: 1px solid #ddd;
+                    }
+                    .contact-header {
+                        color: #1f77b4;
+                        font-size: 1.2em;
+                        margin-bottom: 10px;
+                    }
+                    </style>
+                """, unsafe_allow_html=True)
+                
+                # Información del Solicitante
+                st.markdown("""
+                    <div class="contact-info">
+                        <div class="contact-header">📋 Información del Solicitante</div>
+                        <p><strong>ID:</strong> {}</p>
+                        <p><strong>Nombre:</strong> {}</p>
+                        <p><strong>Teléfono:</strong> {}</p>
+                    </div>
+                """.format(
+                    info['Solicitud_ID'],
+                    info['Solicitante_Nombre'],
+                    info['Solicitante_Telefono']
+                ), unsafe_allow_html=True)
+                
+                # Información del Voluntario
+                st.markdown("""
+                    <div class="contact-info">
+                        <div class="contact-header">🤝 Información del Voluntario</div>
+                        <p><strong>ID:</strong> {}</p>
+                        <p><strong>Nombre:</strong> {}</p>
+                        <p><strong>Teléfono:</strong> {}</p>
+                    </div>
+                """.format(
+                    info['Voluntario_ID'],
+                    info['Voluntario_Nombre'],
+                    info['Voluntario_Telefono']
+                ), unsafe_allow_html=True)
+                
+                # Detalles del Match
+                st.markdown("""
+                    <div class="contact-info">
+                        <div class="contact-header">ℹ️ Detalles del Match</div>
+                        <p><strong>Tipo de Ayuda:</strong> {}</p>
+                    </div>
+                """.format(info['Voluntario_Necesidad']), unsafe_allow_html=True)
+                
+                # Instrucciones de seguridad
+                st.warning("""
+                    🔒 Por su seguridad:
+                    - Verifique la identidad de la persona antes de encontrarse
+                    - Reúnase en lugares públicos y seguros
+                    - Mantenga un registro de sus comunicaciones
+                    - Si algo no parece correcto, repórtelo inmediatamente
+                """)
+            else:
+                st.error("No se encontró información para el ID proporcionado o aún no tiene un match.")
+        else:
+            st.warning("Por favor, ingrese un ID para buscar.")
